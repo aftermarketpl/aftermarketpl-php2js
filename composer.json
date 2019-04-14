@@ -1,0 +1,24 @@
+{
+    "name": "aftermarketpl/php2js",
+    "description": "Quick and dirty PHP to JavaScript converter.",
+    "keywords": ["javascript"],
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "Michal Pleban",
+            "email": "kontakt@aftermarket.pl"
+        }
+    ],
+    "type": "library",
+    "require": {
+		"php": ">=5.6"
+    },
+    "require-dev": {
+		"phpunit/phpunit": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aftermarketpl\\PHP2JS\\": "lib/"
+        }
+    }
+}
