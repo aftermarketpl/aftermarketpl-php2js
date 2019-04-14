@@ -1,0 +1,12 @@
+#!/usr/bin/php -q
+<?php
+
+require "../lib/autoload.php";
+
+$file = file_get_contents("translate.php");
+$translator = new Aftermarketpl\PHP2JS\Translator($file);
+$f = fopen("translate.js", "w");
+fputs($f, $translator->getResult());
+fclose($f);
+
+?>
