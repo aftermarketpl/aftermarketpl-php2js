@@ -299,6 +299,11 @@ class Translator
     {
         $this->emit("Boolean");
     }
+
+    protected function handle_UNSET($text)
+    {
+        $this->emit("delete ");
+    }
 }
 
 ?>
