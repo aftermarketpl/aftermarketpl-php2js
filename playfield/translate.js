@@ -18,3 +18,5 @@ else
     a = "C";
 }
 
+console.log( (typeof (a) !== 'undefined'));
+

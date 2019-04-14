@@ -101,9 +101,14 @@ class Translator
         $this->holdActions[$this->holdLevel-1]["content"] .= $text;
     }
     
+    protected function holdPop()
+    {
+        return $this->holdActions[--$this->holdLevel]["content"];
+    }
+    
     protected function holdFinalize()
     {
-        $this->emit($this->holdActions[--$this->holdLevel]["content"]);
+        $this->emit($this->holdPop());
     }
     
     protected function bracketAction($fnFinish, $content = array())
@@ -253,6 +258,18 @@ class Translator
     protected function T_PRINT($text)
     {
         $this->T_ECHO($text);
+    }
+
+    protected function T_ISSET($text)
+    {
+        $this->holdAction();
+        $this->bracketAction("finish_ISSET");
+    }
+    
+    protected function finish_ISSET($elem)
+    {
+        $expr = $this->holdPop();
+        $this->emit("(typeof " . $expr . " !== 'undefined')");
     }
 }
 

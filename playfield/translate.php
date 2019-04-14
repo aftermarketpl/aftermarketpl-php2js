@@ -19,4 +19,6 @@ else
     $a = "C";
 }
 
+echo isset($a);
+
 ?>
