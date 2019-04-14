@@ -45,7 +45,7 @@ class Translator
                 }
                 else
                 {
-                    $this->handleToken($token[2], token_name($token[0]), $token[1]);
+                    $this->handleToken($token[2], substr(token_name($token[0]), 2), $token[1]);
                 }
             }
             else
@@ -143,6 +143,7 @@ class Translator
         {
             $function = $this->bracketActions[$this->bracketLevel]["fnFinish"];
             $this->$function($this->bracketActions[$this->bracketLevel]);
+            unset($this->bracketActions[$this->bracketLevel]);
         }
     }
     
@@ -168,99 +169,121 @@ class Translator
     {
         $this->line = $line;
 
-        $method = $token;
+        $method = "handle_" . $token;
         if(method_exists($this, $method))
         {
             $this->$method($contents);
         }
         else
         {
-            throw new \Exception("Cannot handle token " . $token . " at line " . $line);
+            throw new \Exception("Cannot handle token T_" . $token . " at line " . $line);
         }
     }
     
-    protected function T_OPEN_TAG($text)
+    protected function handle_OPEN_TAG($text)
     {
         // Do nothing
     }
 
-    protected function T_CLOSE_TAG($text)
+    protected function handle_CLOSE_TAG($text)
     {
         // Do nothing
     }
 
-    protected function T_COMMENT($text)
+    protected function handle_COMMENT($text)
     {
         // Do nothing
     }
 
-    protected function T_LNUMBER($text)
+    protected function handle_LNUMBER($text)
     {
         $this->emit(intval($text));
     }
 
-    protected function T_DNUMBER($text)
+    protected function handle_DNUMBER($text)
     {
         $this->emit(floatval($text));
     }
 
-    protected function T_CONSTANT_ENCAPSED_STRING($text)
+    protected function handle_CONSTANT_ENCAPSED_STRING($text)
     {
         $this->emit($text);
     }
 
-    protected function T_VARIABLE($text)
+    protected function handle_VARIABLE($text)
     {
         $this->emit(substr($text, 1));
     }
+    
+    protected function handle_STRING($text)
+    {
+        $text = $this->translateString($text);
+        if($text)
+            $this->emit($text);
+    }
+    
+    protected function translateString($text)
+    {
+        switch($text)
+        {
+            case "intval":
+                return "parseInt";
+            case "floatval":
+                return "parseFloat";
+            case "stringval":
+                return "String";
+            case "boolval":
+                return "Boolean";
+        }
+    }
 
-    protected function T_IS_EQUAL($text)
+    protected function handle_IS_EQUAL($text)
     {
         $this->emit("==");
     }
 
-    protected function T_IS_NOT_EQUAL($text)
+    protected function handle_IS_NOT_EQUAL($text)
     {
         $this->emit("!=");
     }
 
-    protected function T_INC($text)
+    protected function handle_INC($text)
     {
         $this->emit("++");
     }
 
-    protected function T_DEC($text)
+    protected function handle_DEC($text)
     {
         $this->emit("--");
     }
 
-    protected function T_IF($text)
+    protected function handle_IF($text)
     {
         $this->emit("if");
     }
 
-    protected function T_ELSE($text)
+    protected function handle_ELSE($text)
     {
         $this->emit("else");
     }
 
-    protected function T_ELSEIF($text)
+    protected function handle_ELSEIF($text)
     {
         $this->emit("else if");
     }
 
-    protected function T_ECHO($text)
+    protected function handle_ECHO($text)
     {
         $this->emit("console.log(");
         $this->beforeSemicolon = ")";
     }
 
-    protected function T_PRINT($text)
+    protected function handle_PRINT($text)
     {
-        $this->T_ECHO($text);
+        $this->handle_ECHO($text);
     }
 
-    protected function T_ISSET($text)
+    protected function handle_ISSET($text)
     {
         $this->holdAction();
         $this->bracketAction("finish_ISSET");
@@ -270,6 +293,11 @@ class Translator
     {
         $expr = $this->holdPop();
         $this->emit("(typeof " . $expr . " !== 'undefined')");
+    }
+
+    protected function handle_EMPTY($text)
+    {
+        $this->emit("Boolean");
     }
 }
 

@@ -20,5 +20,6 @@ else
 }
 
 echo isset($a);
+echo empty($a);
 
 ?>
