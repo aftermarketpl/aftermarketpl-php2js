@@ -115,6 +115,16 @@ class Translator
         $this->emit(substr($text, 1));
     }
 
+    protected function T_IS_EQUAL($text)
+    {
+        $this->emit("==");
+    }
+
+    protected function T_IS_NOT_EQUAL($text)
+    {
+        $this->emit("!=");
+    }
+
     protected function T_INC($text)
     {
         $this->emit("++");
@@ -123,6 +133,21 @@ class Translator
     protected function T_DEC($text)
     {
         $this->emit("--");
+    }
+
+    protected function T_IF($text)
+    {
+        $this->emit("if");
+    }
+
+    protected function T_ELSE($text)
+    {
+        $this->emit("else");
+    }
+
+    protected function T_ELSEIF($text)
+    {
+        $this->emit("else if");
     }
 
     protected function T_ECHO($text)
