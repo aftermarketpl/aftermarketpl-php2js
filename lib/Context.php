@@ -13,17 +13,12 @@ class Context
     protected $bracketLevel;
     protected $holdLevel;
     
-    protected $curlyActions;
-    protected $bracketActions;
-    protected $holdActions;
-
     public function __construct($translator)
     {
         $this->translator = $translator;
         $this->result = "";
 
         $this->curlyLevel = $this->bracketLevel = $this->holdLevel = 0;
-        $this->curlyActions = $this->bracketActions = $this->holdActions = array();
     }
     
     public function getResult()
@@ -33,44 +28,7 @@ class Context
     
     public function emit($text)
     {
-        if($this->holdLevel > 0)
-        {
-            $function = $this->holdActions[$this->holdLevel-1]["fnEmit"];
-            $this->$function($text);
-        }
-        else
-        {
-            $this->result .= $text;
-        }
-    }
-    
-    public function holdAction($fnEmit = "holdCopy", $content = array())
-    {
-        $this->holdActions[$this->holdLevel] = $content;
-        $this->holdActions[$this->holdLevel]["fnEmit"] = $fnEmit;
-        $this->holdActions[$this->holdLevel]["content"] = "";
-        $this->holdLevel++;
-    }
-    
-    public function holdCopy($text)
-    {
-        $this->holdActions[$this->holdLevel-1]["content"] .= $text;
-    }
-    
-    public function holdPop()
-    {
-        return $this->holdActions[--$this->holdLevel]["content"];
-    }
-    
-    public function holdFinalize()
-    {
-        $this->emit($this->holdPop());
-    }
-    
-    public function bracketAction($fnFinish, $content = array())
-    {
-        $this->bracketActions[$this->bracketLevel] = $content;
-        $this->bracketActions[$this->bracketLevel]["fnFinish"] = $fnFinish;
+        $this->result .= $text;
     }
     
     public function curlyOpen()
@@ -95,12 +53,12 @@ class Context
     {
         $this->emit(")");
         $this->bracketLevel--;
-        if($this->bracketActions[$this->bracketLevel])
-        {
-            $function = $this->bracketActions[$this->bracketLevel]["fnFinish"];
-            $this->$function($this->bracketActions[$this->bracketLevel]);
-            unset($this->bracketActions[$this->bracketLevel]);
-        }
+        if(!$this->bracketLevel)
+            $this->afterLastBracket();
+    }
+    
+    protected function afterLastBracket()
+    {
     }
     
     public function handleCharacter($char)
@@ -173,23 +131,19 @@ class Context
     
     public function handle_STRING($text)
     {
-        $text = $this->translateString($text);
-        if($text)
-            $this->emit($text);
+        $this->translateFunction($text);
     }
     
-    public function translateString($text)
+    public function translateFunction($function)
     {
-        switch($text)
+        $function = $this->translator->getEnvironment()->translateFunction($function);
+        if(strpos($function, "%") === false)
         {
-            case "intval":
-                return "parseInt";
-            case "floatval":
-                return "parseFloat";
-            case "stringval":
-                return "String";
-            case "boolval":
-                return "Boolean";
+            $this->emit($function);
+        }
+        else
+        {
+            $this->translator->pushContext(new Context\FunctionCall($this->translator, $function));
         }
     }
 
@@ -241,24 +195,17 @@ class Context
 
     public function handle_ISSET($text)
     {
-        $this->holdAction();
-        $this->bracketAction("finish_ISSET");
+        $this->translateFunction("isset");
     }
     
-    public function finish_ISSET($elem)
-    {
-        $expr = $this->holdPop();
-        $this->emit("(typeof " . $expr . " !== 'undefined')");
-    }
-
     public function handle_EMPTY($text)
     {
-        $this->emit("Boolean");
+        $this->translateFunction("empty");
     }
 
     public function handle_UNSET($text)
     {
-        $this->emit("delete ");
+        $this->translateFunction("unset");
     }
 }
 

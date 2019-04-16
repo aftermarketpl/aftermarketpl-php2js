@@ -5,14 +5,18 @@ namespace Aftermarketpl\PHP2JS;
 class Translator
 {
     protected $tokens;
-    
+
+    protected $environment;
+
     protected $line;
     
     protected $contexts;
 
-    public function __construct($source)
+    public function __construct($source, $environment = null)
     {
         $this->tokens = token_get_all($source);
+        
+        $this->environment = $environment ? $environment : new Environment\Bare();
         
         $this->contexts = array();
     }
@@ -60,6 +64,21 @@ class Translator
         return $this->contexts[0]->getResult();
     }
     
+    public function pushContext($context)
+    {
+        $this->contexts[] = $context;
+    }
+    
+    public function popContext()
+    {
+        $context = array_pop($this->contexts);
+        $this->contexts[count($this->contexts)-1]->emit($context->getResult());
+    }
+    
+    public function getEnvironment()
+    {
+        return $this->environment;
+    }
 }
 
 ?>

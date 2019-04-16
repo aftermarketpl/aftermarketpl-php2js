@@ -20,4 +20,5 @@ else
 
 console.log( (typeof (a) !== 'undefined'));
 console.log( Boolean(a));
+delete (a);
 
