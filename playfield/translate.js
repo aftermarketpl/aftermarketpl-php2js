@@ -18,7 +18,10 @@ else
     a = "C";
 }
 
-console.log( (typeof (a) !== 'undefined'));
-console.log( Boolean(a));
+console.log( (typeof a !== 'undefined'));
+console.log( (Boolean(a)?true:false));
 delete (a);
+
+console.log( (("Jeden").substr( 2, undefined)));
+console.log( (("Jeden").substr( 2,  1)));
 

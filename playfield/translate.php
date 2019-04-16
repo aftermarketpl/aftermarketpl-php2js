@@ -23,4 +23,7 @@ echo isset($a);
 echo empty($a);
 unset($a);
 
+echo substr("Jeden", 2);
+echo substr("Jeden", 2, 1);
+
 ?>
