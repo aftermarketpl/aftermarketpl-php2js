@@ -1,0 +1,3 @@
+a = [];
+a[1] = "Jeden";
+return (typeof a[2] !== 'undefined');

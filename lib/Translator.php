@@ -32,7 +32,7 @@ class Translator
             {
                 if($token[0] == T_WHITESPACE)
                 {
-                    $context->emit($token[1]);
+                    $context->emit($token[1], false);
                 }
                 else
                 {

@@ -22,23 +22,27 @@ class FunctionCall extends Context
     {
         if($char == ",")
         {
-            $this->args[] = $this->result;
-            $this->result = "";
+            $this->args[] = $this->getResult();
+            $this->clear();
         }
         else parent::handleCharacter($char);
     }
     
+    protected function afterFirstBracket()
+    {
+        $this->popElement();
+    }
+
     protected function afterLastBracket()
     {
-        $this->args[] = $this->result;
-        $this->args[0] = substr($this->args[0], 1);
-        $this->args[count($this->args)-1] = substr($this->args[count($this->args)-1], 0, -1);
+        $this->popElement();
+        $this->args[] = $this->getResult();
         $result = $this->replace;
         for($i = 0; $i < 10; $i++)
         {
             $result = str_replace("%" . ($i+1), $this->args[$i] ? $this->args[$i] : "undefined", $result);
         }
-        $this->result = "(" . $result . ")";
+        $this->result = array("(" . $result . ")");
         $this->translator->popContext();
     }
 }

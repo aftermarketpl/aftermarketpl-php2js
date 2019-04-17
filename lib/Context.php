@@ -16,19 +16,42 @@ class Context
     public function __construct($translator)
     {
         $this->translator = $translator;
-        $this->result = "";
+        $this->result = array();
 
         $this->curlyLevel = $this->bracketLevel = $this->holdLevel = 0;
     }
     
-    public function getResult()
+    public function clear()
     {
-        return $this->result;
+        $this->result = array();
     }
     
-    public function emit($text)
+    public function getResult()
     {
-        $this->result .= $text;
+        return join("", $this->result);
+    }
+    
+    public function emit($text, $push = true)
+    {
+        if($push)
+        {
+            $this->result[] = $text;
+        }
+        else
+        {
+            if(count($this->result))
+                $this->result[count($this->result)-1] .= $text;
+        }
+    }
+    
+    protected function popElement()
+    {
+        if(count($this->result))
+        {
+            $elem = array_pop($this->result);
+            return trim($elem);
+        }
+        else return null;
     }
     
     public function curlyOpen()
@@ -47,6 +70,8 @@ class Context
     {
         $this->bracketLevel++;
         $this->emit("(");
+        if($this->bracketLevel == 1)
+            $this->afterFirstBracket();
     }
     
     public function bracketClose()
@@ -55,6 +80,10 @@ class Context
         $this->bracketLevel--;
         if(!$this->bracketLevel)
             $this->afterLastBracket();
+    }
+    
+    protected function afterFirstBracket()
+    {
     }
     
     protected function afterLastBracket()
@@ -273,6 +302,11 @@ class Context
     public function handle_PRINT($text)
     {
         $this->handle_ECHO($text);
+    }
+
+    public function handle_ARRAY($text)
+    {
+        $this->translator->pushContext(new Context\ArrayDefinition($this->translator));
     }
 
     public function handle_ISSET($text)
