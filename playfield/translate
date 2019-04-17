@@ -3,7 +3,7 @@
 
 chdir(dirname($argv[0]));
 
-require "../lib/autoload.php";
+require "../vendor/autoload.php";
 
 unlink("translate.js");
 $file = file_get_contents("translate.php");
