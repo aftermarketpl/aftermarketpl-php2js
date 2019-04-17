@@ -15,7 +15,8 @@
     },
     "require-dev": {
 		"phpunit/phpunit": "*",
-		"nacmartin/phpexecjs": ">=2.0.0"
+		"nacmartin/phpexecjs": ">=2.0.0",
+		"popphp/pop-dir": ">=3.0.0"
     },
     "autoload": {
         "psr-4": {

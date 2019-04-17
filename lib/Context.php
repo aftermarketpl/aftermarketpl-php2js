@@ -131,7 +131,14 @@ class Context
     
     public function handle_STRING($text)
     {
-        $this->translateFunction($text);
+        if($text != "true" && $text != "false" && $text != "null")
+        {
+            $this->translateFunction($text);
+        }
+        else
+        {
+            $this->emit($text);
+        }
     }
     
     public function translateFunction($function)
@@ -157,6 +164,26 @@ class Context
         $this->emit("!=");
     }
 
+    public function handle_IS_GREATER_OR_EQUAL($text)
+    {
+        $this->emit(">=");
+    }
+
+    public function handle_IS_SMALLER_OR_EQUAL($text)
+    {
+        $this->emit("<=");
+    }
+
+    public function handle_IS_IDENTICAL($text)
+    {
+        $this->emit("===");
+    }
+
+    public function handle_IS_NOT_IDENTICAL($text)
+    {
+        $this->emit("!==");
+    }
+
     public function handle_INC($text)
     {
         $this->emit("++");
@@ -165,6 +192,11 @@ class Context
     public function handle_DEC($text)
     {
         $this->emit("--");
+    }
+
+    public function handle_PLUS_EQUAL($text)
+    {
+        $this->emit("+=");
     }
 
     public function handle_IF($text)
@@ -180,6 +212,56 @@ class Context
     public function handle_ELSEIF($text)
     {
         $this->emit("else if");
+    }
+
+    public function handle_BREAK($text)
+    {
+        $this->emit("break");
+    }
+
+    public function handle_CASE($text)
+    {
+        $this->emit("case");
+    }
+
+    public function handle_CONTINUE($text)
+    {
+        $this->emit("continue");
+    }
+
+    public function handle_DEFAULT($text)
+    {
+        $this->emit("default");
+    }
+
+    public function handle_DO($text)
+    {
+        $this->emit("do");
+    }
+
+    public function handle_FOR($text)
+    {
+        $this->emit("for");
+    }
+
+    public function handle_FUNCTION($text)
+    {
+        $this->emit("function");
+    }
+
+    public function handle_RETURN($text)
+    {
+        $this->emit("return");
+    }
+
+    public function handle_SWITCH($text)
+    {
+        $this->emit("switch");
+    }
+
+    public function handle_WHILE($text)
+    {
+        $this->emit("while");
     }
 
     public function handle_ECHO($text)

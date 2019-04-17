@@ -1,0 +1,9 @@
+a = 0;
+b = 0;
+while(b < 10)
+{
+    b++;
+    if(b >= 5) continue;
+    a += b;
+}
+return a;

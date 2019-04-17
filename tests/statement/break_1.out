@@ -1,0 +1,8 @@
+a = 0;
+b = 0;
+while(b < 10)
+{
+    if(b >= 5) break;
+    a += b++;
+}
+return a;
