@@ -323,6 +323,95 @@ class Context
     {
         $this->translateFunction("unset");
     }
+
+    public function handle_AND_EQUAL($text)
+    {
+        $this->emit("&=");
+    }
+
+    public function handle_BOOLEAN_AND($text)
+    {
+        $this->emit("&");
+    }
+
+    public function handle_BOOLEAN_OR($text)
+    {
+        $this->emit("|");
+    }
+
+    public function handle_CONCAT_EQUAL($text)
+    {
+        $this->emit("+=");
+    }
+
+    public function handle_DIV_EQUAL($text)
+    {
+        $this->emit("/=");
+    }
+
+    public function handle_LOGICAL_AND($text)
+    {
+        $this->emit("&&");
+    }
+
+    public function handle_LOGICAL_OR($text)
+    {
+        $this->emit("||");
+    }
+
+    public function handle_LOGICAL_XOR($text)
+    {
+        $this->emit("!="); // :-)
+    }
+    
+    public function handle_MINUS_EQUAL($text)
+    {
+        $this->emit("-=");
+    }
+
+    public function handle_MOD_EQUAL($text)
+    {
+        $this->emit("%=");
+    }
+
+    public function handle_MUL_EQUAL($text)
+    {
+        $this->emit("*=");
+    }
+
+    public function handle_OR_EQUAL($text)
+    {
+        $this->emit("|=");
+    }
+
+    public function handle_SL($text)
+    {
+        $this->emit("<<");
+    }
+
+    public function handle_SL_EQUAL($text)
+    {
+        $this->emit("<<=");
+    }
+
+    public function handle_SR($text)
+    {
+        $this->emit(">>");
+    }
+
+    public function handle_SR_EQUAL($text)
+    {
+        $this->emit(">>=");
+    }
+
+    public function handle_XOR_EQUAL($text)
+    {
+        $this->emit("^=");
+    }
+
+    /*T_BREAK, T_CASE, T_CONTINUE, T_DO, T_FOR, T_FUNCTION, T_RETURN,
+    T_SWITCH, T_WHILE*/
+
 }
 
 ?>
