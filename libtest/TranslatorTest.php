@@ -35,8 +35,7 @@ class TranslatorTest extends TestCase
             if(pathinfo($file, PATHINFO_EXTENSION) == "in")
             {
                 $php = file_get_contents($path . "/" . $file);
-                $translator = new Translator("<?php\n" . $php . "?>");
-                $js = $translator->getResult();
+                $js = Translator::translate("<?php\n" . $php . "?>");
 
                 $out = $path . "/" . pathinfo($file, PATHINFO_DIRNAME) . "/" . pathinfo($file, PATHINFO_FILENAME) . ".out";
                 $f = fopen($out, "w");

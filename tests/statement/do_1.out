@@ -5,4 +5,5 @@ do
     a += b++;
 }
 while(b < 10);
+
 return a;

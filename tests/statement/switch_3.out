@@ -4,10 +4,14 @@ switch(a)
     case 1:
         b = 1;
         break;
+
     case 2:
         b = 2;
         break;
+
     default:
         b = 3;
+
 }
+
 return b;
