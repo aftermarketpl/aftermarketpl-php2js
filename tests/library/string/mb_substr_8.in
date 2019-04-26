@@ -1,0 +1,4 @@
+$a = "ąĆęŁ";
+$b = 1;
+$c = -2;
+return mb_substr($a, $b, $c);

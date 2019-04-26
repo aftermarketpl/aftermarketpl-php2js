@@ -1,0 +1,2 @@
+$a = "aBcD";
+return strlen($a);

@@ -1,0 +1,4 @@
+a = [];
+a[1] = "Jeden";
+delete a[2];
+return (typeof a[1] !== 'undefined');

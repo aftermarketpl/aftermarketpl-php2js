@@ -4,9 +4,10 @@ namespace Aftermarketpl\PHP2JS;
 
 class Translator
 {
-    public static function translate($code)
+    public static function translate($code, $env = null)
     {
-        $parser = new Parser($code);
+        if(!$env) $env = new Environment();
+        $parser = new Parser($code, $env);
         return $parser->parse();
     }
 }

@@ -1,0 +1,4 @@
+$a = "aBcD";
+$b = 1;
+$c = -2;
+return substr($a, $b, $c);

@@ -1,0 +1,4 @@
+$a = [];
+$a[1] = "Jeden";
+unset($a[1]);
+return isset($a[1]);

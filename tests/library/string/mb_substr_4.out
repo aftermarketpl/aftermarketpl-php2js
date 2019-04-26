@@ -1,0 +1,2 @@
+a = "ąĆęŁ";
+return (function(s, x, y){ if(y < 0) return s.substring(x, s.length+y); else return s.substr(x, y); })(a, 1, -2);

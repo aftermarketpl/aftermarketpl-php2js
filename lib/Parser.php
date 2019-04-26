@@ -4,16 +4,20 @@ namespace Aftermarketpl\PHP2JS;
 
 use PhpParser\ParserFactory;
 use PhpParser\Node\Expr\BinaryOp;
+use PhpParser\Node\Name;
 
 class Parser
 {
     protected $code;
     
+    protected $environment;
+    
     protected $indent;
     
-    public function __construct($code)
+    public function __construct($code, $env)
     {
         $this->code = $code;
+        $this->environment = $env;
         $this->indent = 0;
     }
     
@@ -114,11 +118,17 @@ class Parser
                 return "\"" . addslashes($node->value) . "\"";
 
             case "Expr_ConstFetch":
-                return $this->renderName($node->name);
+                $name = $this->renderName($node->name);
+                switch($name)
+                {
+                    case "true": return 1;
+                    case "false": return "''";
+                    default: return $name;
+                }
 
             case "Expr_Variable":
                 if(!is_string($node->name))
-                    throw new \Exception("Cannot parse computer variable name");
+                    throw new \Exception("Cannot parse computed variable name");
                 return $node->name;
             
             /*
@@ -206,11 +216,33 @@ class Parser
                 $this->indent--;
                 return $return;
 
+            case "Expr_Ternary":
+                if(empty($node->if))
+                    throw new \Exception("Ternary operator without second argument");
+                else
+                    return $this->parseExpression($node->cond) . " ? " . $this->parseExpression($node->if) . " : " . $this->parseExpression($node->else);
+
+            case "Expr_ErrorSuppress":
+                return $this->parseExpression($node->expr);
+
+            /*
+             * Built in operations.
+             */
+
             case "Stmt_Unset":
                 $return = array();
                 foreach($node->vars as $expr)
                     $return[] = "delete " . $this->parseExpression($expr, true);
                 return join("; ", $return);
+
+            case "Expr_Isset":
+                if(count($node->vars) == 1)
+                    return "(typeof " . $this->parseExpression($node->vars[0]) . " !== 'undefined')";
+                else
+                    throw new \Exception("Multiple arguments for isset()");
+
+            case "Expr_Empty":
+                return "!Boolean(" . $this->parseExpression($node->expr) . ")";
             
             /*
              * Unary operators.
@@ -222,6 +254,12 @@ class Parser
             case "Expr_UnaryPlus":
                 return "+" . $this->parseExpression($node->expr);
 
+            case "Expr_BooleanNot":
+                return "!" . $this->parseExpression($node->expr);
+            
+            case "Expr_BitwiseNot":
+                return "~" . $this->parseExpression($node->expr);
+            
             case "Expr_PreDec":
                 return "--" . $this->parseExpression($node->var, true);
             
@@ -233,7 +271,7 @@ class Parser
             
             case "Expr_PostInc":
                 return $this->parseExpression($node->var, true) . "++";
-
+            
             /*
              * Assignment operators.
              */
@@ -367,11 +405,25 @@ class Parser
                     throw new \Exception("Empty array dimension");
                 return $this->parseExpression($node->var) . "[" . $this->parseExpression($node->dim, true) . "]";
 
-            case "Expr_Isset":
-                if(count($node->vars) == 1)
-                    return "(typeof " . $this->parseExpression($node->vars[0]) . " !== 'undefined')";
-                else
-                    throw new \Exception("Multiple arguments for isset()");
+            /*
+             * Function calls.
+             */
+
+            case "Expr_FuncCall":
+                if(!($node->name instanceof Name))
+                    throw new \Exception("Cannot use dynamic function names");
+                $name = $this->renderName($node->name);
+                $args = array();
+                foreach($node->args as $arg)
+                    $args[] = $this->parseExpression($arg, true);
+                return $this->environment->translateFunction($name, $args);
+
+            case "Arg":
+                if($node->byRef)
+                    throw new \Exception("Cannot pass values by reference");
+                if($node->unpack)
+                    throw new \Exception("Cannot unpack values");
+                return $this->parseExpression($node->value, true);
 
             /*
              * Unknown node types.

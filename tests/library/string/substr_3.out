@@ -1,0 +1,2 @@
+a = "aBcD";
+return (a).substr(1, 2);

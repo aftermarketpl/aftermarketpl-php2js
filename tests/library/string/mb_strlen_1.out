@@ -1,0 +1,2 @@
+a = "ąćę";
+return (a).length;

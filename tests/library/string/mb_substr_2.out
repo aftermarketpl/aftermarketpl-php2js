@@ -1,0 +1,2 @@
+a = "ąĆęŁ";
+return (a).charAt(2);
