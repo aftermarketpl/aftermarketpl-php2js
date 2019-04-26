@@ -26,19 +26,9 @@ d = a ? (b + c) : (Math.pow(b, c));
 
 The following PHP constructs are not supported **yet**, but we plan to implement them in the near future.
 
-**List assignment**
-```php
-list($a, $b) = array(1, 2);
-```
-
 **The foreach() loop**
 ```php
 foreach($a as $b => $c) {}
-```
-
-**Encapsed strings**
-```php
-$a = "This is $a {$b[1]}";
 ```
 
 ### PHP syntax not accepted at all:
@@ -64,7 +54,6 @@ $b = $a[1]; // Use substr() instead
 
 Again, with the plus operator the transpiler does not know if the variable is a numeric or an array. PHP 7 type hinting may improve this as well.
 ```php
-$array[] = 1;
 $a = $array + $array2;
 ```
 

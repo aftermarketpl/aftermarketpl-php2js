@@ -1,0 +1,2 @@
+$a = array("a");
+return "b{$a[0]}";

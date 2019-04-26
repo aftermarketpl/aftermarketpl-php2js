@@ -4,6 +4,7 @@ namespace Aftermarketpl\PHP2JS;
 
 use PhpParser\ParserFactory;
 use PhpParser\Node\Expr\BinaryOp;
+use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Name;
 
 class Parser
@@ -113,9 +114,17 @@ class Parser
             case "Scalar_DNumber":
                 return floatval($node->value);
 
-            // TODO: escape magic characters
             case "Scalar_String":
-                return "\"" . addslashes($node->value) . "\"";
+                return json_encode(strval($node->value));
+
+            case "Scalar_Encapsed":
+                $return = array();
+                foreach($node->parts as $expr)
+                    $return[] = $this->parseExpression($expr);
+                return "(" . join(" + ", $return) . ")";
+
+            case "Scalar_EncapsedStringPart":
+                return json_encode(strval($node->value));
 
             case "Expr_ConstFetch":
                 $name = $this->renderName($node->name);
@@ -134,6 +143,12 @@ class Parser
             /*
              * Language constructs.
              */
+
+            case "Stmt_Nop":
+                return "";
+
+            case "Stmt_Label":
+                return "";
 
             case "Stmt_Return":
                 if(empty($node->expr))
@@ -216,6 +231,31 @@ class Parser
                 $this->indent--;
                 return $return;
 
+            case "Stmt_Echo":
+                $return = array();
+                foreach($node->exprs as $expr)
+                    $return[] = $this->parseExpression($expr, true);
+                return "console.log(" . join(", ", $return) . ")";
+            case "Expr_Print":
+                return "console.log(" . $this->parseExpression($node->expr, true) . ")";
+
+            case "Expr_List":
+                $return = array();
+                foreach($node->items as $item)
+                {
+                    if(empty($item))
+                    {
+                        $return[] = "";
+                    }
+                    else
+                    {
+                        if(!empty($item->key))
+                            throw new \Exception("Array key assignment not allowed");
+                        $return[] = $this->parseNode($item);
+                    }
+                }
+                return "[" . join(", ", $return) . "]";
+
             case "Expr_Ternary":
                 if(empty($node->if))
                     throw new \Exception("Ternary operator without second argument");
@@ -277,6 +317,8 @@ class Parser
              */
              
             case "Expr_Assign":
+                if($node->var instanceof ArrayDimFetch && empty($node->var->dim))
+                    return "(" . $this->parseExpression($node->var->var) . ").push(" . $this->parseExpression($node->expr) . ")";
                 return $this->renderAssignmentOperator("=", $node);
 
             case "Expr_AssignOp_Plus":
