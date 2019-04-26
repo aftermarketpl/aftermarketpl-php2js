@@ -11,7 +11,7 @@ The most important design goals of the converter are as follows:
 * The resulting JavaScript code should be human-readable and easily correspond to the input PHP code, so that it can be easily inspected and debugged by humans.
 
 ## Limitations
-Since it is not a general purpose transpiler, there are limits on what the transpiler acceps. If it encounters PHP code which it cannot transpile properly, it will normally throw an exception, although in some edge cases it can produce JavaScript code from PHP code it should theoretically not support; such code is not guaranteed to run properly.
+Since it is not a general purpose transpiler, there are limits on what the transpiler accepts. If it encounters PHP code which it cannot transpile properly, it will normally throw an exception, although in some edge cases it can produce JavaScript code from PHP code it should theoretically not support; such code is not guaranteed to run properly.
 
 At this point the transpiler will convert most of **inline** PHP code, which does not contain any function or class definitions. Thus, the following sample PHP code will translate nicely to JavaScript:
 ```php
@@ -46,6 +46,7 @@ $a = "This is $a {$b[1]}";
 The following PHP constructs are not supported at the moment, and will likely not be supported at all, although we may implement some of them if time permits:
 
 **Computed variable and function names**
+
 Seriously, you really shouldn't be doing this anyway.
 ```php
 $a = $$b;
@@ -53,12 +54,14 @@ $a = $b(); // May be supported in the future
 ```
 
 **String subscripting with brackets**
+
 This mainly stems from the fact that the transpiler does not know whether the variable is an array or a string. With PHP 7 type hinting, this may be improved in the future if the type of the variable can be deduced.
 ```php
 $a = "string";
 $b = $a[1]; // Use substr() instead
 ```
 **Some array operations**
+
 Again, with the plus operator the transpiler does not know if the variable is a numeric or an array. PHP 7 type hinting may improve this as well.
 ```php
 $array[] = 1;
@@ -66,7 +69,8 @@ $a = $array + $array2;
 ```
 
 **Some binary and assigmment operators**
-Some of these operators may be supported with some ugly JavaScript, so the situation may improve.
+
+Some of these operators may be supported with ugly JavaScript, so the situation may improve.
 ```php
 $a = $b <=> $c; // May be supported in the future
 $a = $b xor $c;
@@ -76,6 +80,7 @@ $a **= $c;
 ```
 
 **Variable references**
+
 They cannot be easily reproduced in JavaScript in general.
 ```php
 $a = &$b;
