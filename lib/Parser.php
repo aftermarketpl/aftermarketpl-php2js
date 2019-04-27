@@ -6,6 +6,9 @@ use PhpParser\ParserFactory;
 use PhpParser\Node\Expr\BinaryOp;
 use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Name;
+use PhpParser\Node;
+
+use Aftermarketpl\PHP2JS\Context\GlobalContext;
 
 class Parser
 {
@@ -15,27 +18,28 @@ class Parser
     
     protected $indent;
     
-    public function __construct($code, $env)
+    public function __construct(string $code, Environment $env)
     {
         $this->code = $code;
         $this->environment = $env;
         $this->indent = 0;
     }
     
-    public function parse()
+    public function parse() : string
     {
         $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
         $ast = $parser->parse($this->code);
+        $context = new GlobalContext();
         
-        return $this->parseStatements($ast);
+        return $this->parseStatements($ast, $context);
     }
     
-    protected function getIndent()
+    protected function getIndent() : string
     {
         return str_repeat("    ", $this->indent);
     }
     
-    protected function renderBlock($stmts, $additional = null)
+    protected function renderBlock(array $stmts, ?array $additional, Context $context) : string
     {
         $result = $this->getIndent() . "{\n";
         $this->indent++;
@@ -44,78 +48,78 @@ class Parser
             foreach($additional as $line)
                 $result .= $this->getIndent() . $line . "\n";
         }
-        $result .= $this->parseStatements($stmts);
+        $result .= $this->parseStatements($stmts, $context);
         $this->indent--;
         $result .= $this->getIndent() . "}";
         return $result;
     }
     
-    protected function parseBlock($stmts)
+    protected function parseBlock(array $stmts, Context $context) : string
     {
-        return $this->renderBlock($stmts);
+        return $this->renderBlock($stmts, null, $context);
     }
     
-    protected function parseStatements($stmts)
+    protected function parseStatements(array $stmts, Context $context) : string
     {
         $result = "";
         foreach($stmts as $stmt)
-            $result .= $this->parseStatement($stmt);
+            $result .= $this->parseStatement($stmt, $context);
         return $result;
     }
     
-    protected function parseStatement($stmt)
+    protected function parseStatement(Node $stmt, Context $context) : string
     {
-        $result = $this->getIndent() . $this->parseNode($stmt);
+        $result = $this->getIndent() . $this->parseNode($stmt, $context);
         $type = $stmt->getType();
         if(!in_array($type, ["Stmt_While", "Stmt_Do", "Stmt_If", "Stmt_Switch", "Stmt_Case", "Stmt_For", "Stmt_Foreach"]))
             $result .= ";";
         return $result . "\n";
     }
     
-    protected function parseExpressions($exprs)
+    protected function parseExpressions(array $exprs, Context $context) : string
     {
         $return = array();
         foreach($exprs as $expr)
         {
-            $return[] = $this->parseExpression($expr);
+            $return[] = $this->parseNode($expr, $context);
         }
         return join(", ", $return);
     }
 
-    protected function parseExpression($expr, $noparen = false)
+    protected function parseExpression(Node $expr, Context $context) : string
     {
-        $paren = !$noparen && $expr instanceof BinaryOp;
+        $paren = $expr instanceof BinaryOp;
         
         $result = "";
         if($paren) $result .= "(";
-        $result .= $this->parseNode($expr);
+        $result .= $this->parseNode($expr, $context);
         if($paren) $result .= ")";
         return $result;
     }
     
-    protected function renderAssignmentOperator($op, $node)
+    protected function renderAssignmentOperator(string $op, Node $node, Context $context) : string
     {
-        return $this->parseExpression($node->var, true) . " " . $op . " " . $this->parseExpression($node->expr, true);
+        return $this->parseNode($node->var, $context) . " " . $op . " " . $this->parseNode($node->expr, $context);
     }
     
-    protected function renderBinaryOperator($op, $node)
+    protected function renderBinaryOperator(string $op, Node $node, Context $context) : string
     {
-        return $this->parseExpression($node->left) . " " . $op . " " . $this->parseExpression($node->right);
+        return $this->parseExpression($node->left, $context) . " " . $op . " " . $this->parseExpression($node->right, $context);
     }
     
-    protected function renderName($node)
+    protected function renderName(Node $node, Context $context) : string
     {
         return join("\\", $node->parts);
     }
     
-    protected function parseNode($node)
+    protected function parseNode(Node $node, Context $context) : string
     {
         $type = $node->getType();
         
         switch($type)
         {
             case "Stmt_Expression":
-                return $this->parseExpression($node->expr);
+                return $this->parseExpression($node->expr, $context);
 
             /*
              * Simple elements.
@@ -132,14 +136,14 @@ class Parser
             case "Scalar_Encapsed":
                 $return = array();
                 foreach($node->parts as $expr)
-                    $return[] = $this->parseExpression($expr);
+                    $return[] = $this->parseExpression($expr, $context);
                 return "(" . join(" + ", $return) . ")";
 
             case "Scalar_EncapsedStringPart":
                 return json_encode(strval($node->value));
 
             case "Expr_ConstFetch":
-                $name = $this->renderName($node->name);
+                $name = $this->renderName($node->name, $context);
                 switch($name)
                 {
                     case "true": return 1;
@@ -166,7 +170,7 @@ class Parser
                 if(empty($node->expr))
                     return "return";
                 else
-                    return "return " . $this->parseExpression($node->expr, true);
+                    return "return " . $this->parseNode($node->expr, $context);
 
             case "Stmt_Break":
                 if(!empty($node->num))
@@ -180,86 +184,86 @@ class Parser
 
             case "Stmt_While":
                 return "while(" 
-                    . $this->parseExpression($node->cond, true) 
+                    . $this->parseExpression($node->cond, $context) 
                     . ")\n"
-                    . $this->parseBlock($node->stmts);
+                    . $this->parseBlock($node->stmts, $context);
 
             case "Stmt_If":
                 $return = "if(" 
-                    . $this->parseExpression($node->cond, true) 
+                    . $this->parseNode($node->cond, $context)
                     . ")\n"
-                    . $this->parseBlock($node->stmts);
+                    . $this->parseBlock($node->stmts, $context);
                 if(!empty($node->elseifs))
                     foreach($node->elseifs as $elseif)
-                        $return .= $this->parseNode($elseif);
+                        $return .= $this->parseNode($elseif, $context);
                 if(!empty($node->else))
-                    $return .= $this->parseNode($node->else);
+                    $return .= $this->parseNode($node->else, $context);
                 return $return;
 
             case "Stmt_ElseIf":
                 return "else if(" 
-                    . $this->parseExpression($node->cond, true) 
+                    . $this->parseNode($node->cond, $context) 
                     . ")\n"
-                    . $this->parseBlock($node->stmts);
+                    . $this->parseBlock($node->stmts, $context);
 
             case "Stmt_Else":
                 $return = "else\n"
-                    . $this->parseBlock($node->stmts);
+                    . $this->parseBlock($node->stmts, $context);
                 if(!empty($node->else))
-                    $return .= $this->parseNode($node->else);
+                    $return .= $this->parseNode($node->else, $context);
                 return $return;
 
             case "Stmt_Do":
                 return "do\n"
-                    . $this->parseBlock($node->stmts)
+                    . $this->parseBlock($node->stmts, $context)
                     . "while(" 
-                    . $this->parseExpression($node->cond, true) 
+                    . $this->parseNode($node->cond, $context) 
                     . ");\n";
 
             case "Stmt_For":
                 return "for(" 
-                    . $this->parseExpressions($node->init)
+                    . $this->parseExpressions($node->init, $context)
                     . "; "
-                    . $this->parseExpressions($node->cond)
+                    . $this->parseExpressions($node->cond, $context)
                     . "; "
-                    . $this->parseExpressions($node->loop)
+                    . $this->parseExpressions($node->loop, $context)
                     . ")\n"
-                    . $this->parseBlock($node->stmts);
+                    . $this->parseBlock($node->stmts, $context);
 
             case "Stmt_Foreach":
                 if($node->byRef)
                     throw new \Exception("Cannot assign values by reference");
-                $source = $this->parseExpression($node->expr);
-                $additional = array($this->parseExpression($node->valueVar) . " = " . $source . "[_tmp];");
+                $source = $this->parseNode($node->expr, $context);
+                $additional = array($this->parseNode($node->valueVar, $context) . " = " . $source . "[_tmp];");
                 if($node->keyVar)
-                    $additional[] = $this->parseExpression($node->keyVar) . " = _tmp;";
+                    $additional[] = $this->parseNode($node->keyVar, $context) . " = _tmp;";
                 return "for(_tmp in " . $source . ")\n"
-                    . $this->renderBlock($node->stmts, $additional);
+                    . $this->renderBlock($node->stmts, $additional, $context);
 
             case "Stmt_Switch":
                 return "switch(" 
-                    . $this->parseExpression($node->cond, true) 
+                    . $this->parseNode($node->cond, $context) 
                     . ")\n"
-                    . $this->parseBlock($node->cases);
+                    . $this->parseBlock($node->cases, $context);
 
             case "Stmt_Case":
                 if(empty($node->cond))
                     $return = "default:\n";
                 else
-                    $return = "case " . $this->parseExpression($node->cond, true) . ":\n";
+                    $return = "case " . $this->parseNode($node->cond, $context) . ":\n";
                 $this->indent++;
                 foreach($node->stmts as $stmt)
-                    $return .= $this->parseStatement($stmt);
+                    $return .= $this->parseStatement($stmt, $context);
                 $this->indent--;
                 return $return;
 
             case "Stmt_Echo":
                 $return = array();
                 foreach($node->exprs as $expr)
-                    $return[] = $this->parseExpression($expr, true);
+                    $return[] = $this->parseNode($expr, $context);
                 return "console.log(" . join(", ", $return) . ")";
             case "Expr_Print":
-                return "console.log(" . $this->parseExpression($node->expr, true) . ")";
+                return "console.log(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_List":
                 $return = array();
@@ -273,7 +277,7 @@ class Parser
                     {
                         if(!empty($item->key))
                             throw new \Exception("Array key assignment not allowed");
-                        $return[] = $this->parseNode($item);
+                        $return[] = $this->parseNode($item, $context);
                     }
                 }
                 return "[" . join(", ", $return) . "]";
@@ -282,10 +286,10 @@ class Parser
                 if(empty($node->if))
                     throw new \Exception("Ternary operator without second argument");
                 else
-                    return $this->parseExpression($node->cond) . " ? " . $this->parseExpression($node->if) . " : " . $this->parseExpression($node->else);
+                    return $this->parseNode($node->cond, $context) . " ? " . $this->parseNode($node->if, $context) . " : " . $this->parseNode($node->else, $context);
 
             case "Expr_ErrorSuppress":
-                return $this->parseExpression($node->expr);
+                return $this->parseNode($node->expr, $context);
 
             /*
              * Built in operations.
@@ -294,45 +298,45 @@ class Parser
             case "Stmt_Unset":
                 $return = array();
                 foreach($node->vars as $expr)
-                    $return[] = "delete " . $this->parseExpression($expr, true);
+                    $return[] = "delete " . $this->parseNode($expr, $context);
                 return join("; ", $return);
 
             case "Expr_Isset":
                 if(count($node->vars) == 1)
-                    return "(typeof " . $this->parseExpression($node->vars[0]) . " !== 'undefined')";
+                    return "(typeof " . $this->parseExpression($node->vars[0], $context) . " !== 'undefined')";
                 else
                     throw new \Exception("Multiple arguments for isset()");
 
             case "Expr_Empty":
-                return "!Boolean(" . $this->parseExpression($node->expr) . ")";
+                return "!Boolean(" . $this->parseNode($node->expr, $context) . ")";
             
             /*
              * Unary operators.
              */
             
             case "Expr_UnaryMinus":
-                return "-" . $this->parseExpression($node->expr);
+                return "-" . $this->parseExpression($node->expr, $context);
             
             case "Expr_UnaryPlus":
-                return "+" . $this->parseExpression($node->expr);
+                return "+" . $this->parseExpression($node->expr, $context);
 
             case "Expr_BooleanNot":
-                return "!" . $this->parseExpression($node->expr);
+                return "!" . $this->parseExpression($node->expr, $context);
             
             case "Expr_BitwiseNot":
-                return "~" . $this->parseExpression($node->expr);
+                return "~" . $this->parseExpression($node->expr, $context);
             
             case "Expr_PreDec":
-                return "--" . $this->parseExpression($node->var, true);
+                return "--" . $this->parseNode($node->var, $context);
             
             case "Expr_PreInc":
-                return "++" . $this->parseExpression($node->var, true);
+                return "++" . $this->parseNode($node->var, $context);
             
             case "Expr_PostDec":
-                return $this->parseExpression($node->var, true) . "--";
+                return $this->parseNode($node->var, $context) . "--";
             
             case "Expr_PostInc":
-                return $this->parseExpression($node->var, true) . "++";
+                return $this->parseNode($node->var, $context) . "++";
             
             /*
              * Assignment operators.
@@ -340,41 +344,41 @@ class Parser
              
             case "Expr_Assign":
                 if($node->var instanceof ArrayDimFetch && empty($node->var->dim))
-                    return "(" . $this->parseExpression($node->var->var) . ").push(" . $this->parseExpression($node->expr) . ")";
-                return $this->renderAssignmentOperator("=", $node);
+                    return "(" . $this->parseNode($node->var->var, $context) . ").push(" . $this->parseNode($node->expr, $context) . ")";
+                return $this->renderAssignmentOperator("=", $node, $context);
 
             case "Expr_AssignOp_Plus":
-                return $this->renderAssignmentOperator("+=", $node);
+                return $this->renderAssignmentOperator("+=", $node, $context);
 
             case "Expr_AssignOp_Minus":
-                return $this->renderAssignmentOperator("-=", $node);
+                return $this->renderAssignmentOperator("-=", $node, $context);
 
             case "Expr_AssignOp_Mul":
-                return $this->renderAssignmentOperator("*=", $node);
+                return $this->renderAssignmentOperator("*=", $node, $context);
 
             case "Expr_AssignOp_Div":
-                return $this->renderAssignmentOperator("/=", $node);
+                return $this->renderAssignmentOperator("/=", $node, $context);
 
             case "Expr_AssignOp_Mod":
-                return $this->renderAssignmentOperator("%=", $node);
+                return $this->renderAssignmentOperator("%=", $node, $context);
 
             case "Expr_AssignOp_Concat":
-                return $this->renderAssignmentOperator("+=", $node);
+                return $this->renderAssignmentOperator("+=", $node, $context);
 
             case "Expr_AssignOp_ShiftLeft":
-                return $this->renderAssignmentOperator("<<=", $node);
+                return $this->renderAssignmentOperator("<<=", $node, $context);
 
             case "Expr_AssignOp_ShiftRight":
-                return $this->renderAssignmentOperator(">>=", $node);
+                return $this->renderAssignmentOperator(">>=", $node, $context);
 
             case "Expr_AssignOp_BitwiseAnd":
-                return $this->renderAssignmentOperator("&=", $node);
+                return $this->renderAssignmentOperator("&=", $node, $context);
 
             case "Expr_AssignOp_BitwiseOr":
-                return $this->renderAssignmentOperator("|=", $node);
+                return $this->renderAssignmentOperator("|=", $node, $context);
 
             case "Expr_AssignOp_BitwiseXor":
-                return $this->renderAssignmentOperator("^=", $node);
+                return $this->renderAssignmentOperator("^=", $node, $context);
 
             /*
              * Binary operators.
@@ -400,41 +404,41 @@ class Parser
             case "Expr_BinaryOp_SmallerOrEqual":
             case "Expr_BinaryOp_Identical":
             case "Expr_BinaryOp_NotIdentical":
-                return $this->renderBinaryOperator($node->getOperatorSigil(), $node);
+                return $this->renderBinaryOperator($node->getOperatorSigil(), $node, $context);
 
             case "Expr_BinaryOp_Concat":
-                return $this->renderBinaryOperator("+", $node);
+                return $this->renderBinaryOperator("+", $node, $context);
 
             case "Expr_BinaryOp_Coalesce":
-                return $this->renderBinaryOperator("||", $node);
+                return $this->renderBinaryOperator("||", $node, $context);
 
             case "Expr_BinaryOp_LogicalAnd":
-                return $this->renderBinaryOperator("&&", $node);
+                return $this->renderBinaryOperator("&&", $node, $context);
 
             case "Expr_BinaryOp_LogicalOr":
-                return $this->renderBinaryOperator("||", $node);
+                return $this->renderBinaryOperator("||", $node, $context);
 
             case "Expr_BinaryOp_Pow":
-                return "Math.pow(" . $this->parseExpression($node->left, true) . ", " . $this->parseExpression($node->right, true) . ")";
+                return "Math.pow(" . $this->parseNode($node->left, $context) . ", " . $this->parseNode($node->right, $context) . ")";
 
             /*
              * Cast operators.
              */
 
             case "Expr_Cast_Int":
-                return "parseInt(" . $this->parseExpression($node->expr, true) . ")";
+                return "parseInt(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_Cast_Double":
-                return "parseFloat(" . $this->parseExpression($node->expr, true) . ")";
+                return "parseFloat(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_Cast_String":
-                return "String(" . $this->parseExpression($node->expr, true) . ")";
+                return "String(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_Cast_Boolean":
-                return "Boolean(" . $this->parseExpression($node->expr, true) . ")";
+                return "Boolean(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_Cast_Array":
-                return "(function(x) { if(x instanceof Array) return x; else return [x]; })(" . $this->parseExpression($node->expr, true) . ")";
+                return "(function(x) { if(x instanceof Array) return x; else return [x]; })(" . $this->parseNode($node->expr, $context) . ")";
 
             /*
              * Arrays.
@@ -448,7 +452,7 @@ class Parser
                 for($i = 0; $i < count($node->items); $i++)
                 {
                     if(!empty($node->items[$i]->key)) $objects = true;
-                    $return[] = $this->getIndent() . $this->parseNode($node->items[$i]);
+                    $return[] = $this->getIndent() . $this->parseNode($node->items[$i], $context);
                 }
                 $this->indent--;
                 if(!$objects)
@@ -460,14 +464,14 @@ class Parser
                 if($node->byRef)
                     throw new \Exception("Cannot assign array by reference");
                 if(!empty($node->key))
-                    return $this->parseExpression($node->key) . ": " . $this->parseExpression($node->value);
+                    return $this->parseNode($node->key, $context) . ": " . $this->parseNode($node->value, $context);
                 else
-                    return $this->parseExpression($node->value);
+                    return $this->parseNode($node->value, $context);
 
             case "Expr_ArrayDimFetch":
                 if(empty($node->dim))
                     throw new \Exception("Empty array dimension");
-                return $this->parseExpression($node->var) . "[" . $this->parseExpression($node->dim, true) . "]";
+                return $this->parseExpression($node->var, $context) . "[" . $this->parseNode($node->dim, $context) . "]";
 
             /*
              * Function calls.
@@ -476,10 +480,10 @@ class Parser
             case "Expr_FuncCall":
                 if(!($node->name instanceof Name))
                     throw new \Exception("Cannot use dynamic function names");
-                $name = $this->renderName($node->name);
+                $name = $this->renderName($node->name, $context);
                 $args = array();
                 foreach($node->args as $arg)
-                    $args[] = $this->parseExpression($arg, true);
+                    $args[] = $this->parseNode($arg, $context);
                 return $this->environment->translateFunction($name, $args);
 
             case "Arg":
@@ -487,7 +491,7 @@ class Parser
                     throw new \Exception("Cannot pass values by reference");
                 if($node->unpack)
                     throw new \Exception("Cannot unpack values");
-                return $this->parseExpression($node->value, true);
+                return $this->parseNode($node->value, $context);
 
             /*
              * Unknown node types.
