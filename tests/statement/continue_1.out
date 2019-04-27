@@ -7,8 +7,6 @@ while(b < 10)
     {
         continue;
     }
-
     a += b;
 }
-
 return a;

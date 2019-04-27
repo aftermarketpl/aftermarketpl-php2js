@@ -1,0 +1,12 @@
+a = [
+    1,
+    2,
+    3
+];
+b = 0;
+for(_tmp in a)
+{
+    c = a[_tmp];
+    b += c;
+}
+return b;

@@ -4,5 +4,4 @@ while(b < 10)
 {
     a += b++;
 }
-
 return a;

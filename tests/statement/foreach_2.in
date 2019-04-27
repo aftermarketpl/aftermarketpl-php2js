@@ -1,0 +1,4 @@
+$a = array("a" => 1, "b" => 2, "c" => 3);
+$b = "";
+foreach($a as $c => $d) { $b .= $c; }
+return $b;

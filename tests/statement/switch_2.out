@@ -13,5 +13,4 @@ switch(a)
         b = 3;
 
 }
-
 return b;

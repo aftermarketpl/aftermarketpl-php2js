@@ -24,15 +24,6 @@ d = a ? (b + c) : (Math.pow(b, c));
 
 ### PHP syntax not yet accepted:
 
-The following PHP constructs are not supported **yet**, but we plan to implement them in the near future.
-
-**The foreach() loop**
-```php
-foreach($a as $b => $c) {}
-```
-
-### PHP syntax not accepted at all:
-
 The following PHP constructs are not supported at the moment, and will likely not be supported at all, although we may implement some of them if time permits:
 
 **Computed variable and function names**
@@ -74,6 +65,14 @@ They cannot be easily reproduced in JavaScript in general.
 ```php
 $a = &$b;
 function(&$a) {}
+```
+
+**Multi-leve break and continue**
+
+They cannot be easily reproduced in JavaScript in general.
+```php
+continue 2;
+break $a;
 ```
 
 ### Functions, classes and exceptions:

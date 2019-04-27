@@ -4,14 +4,11 @@ c = 3;
 if(a == b)
 {
     d = 1;
-}
-else if(a == c)
+}else if(a == c)
 {
     d = -1;
-}
-else
+}else
 {
     d = 0;
 }
-
 return d;

@@ -27,12 +27,7 @@ class Parser
         $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
         $ast = $parser->parse($this->code);
         
-        $result = "";
-        foreach($ast as $expr)
-        {
-            $result .= $this->parseStatement($expr);
-        }
-        return $result;
+        return $this->parseStatements($ast);
     }
     
     protected function getIndent()
@@ -40,14 +35,31 @@ class Parser
         return str_repeat("    ", $this->indent);
     }
     
-    protected function parseStatements($stmts)
+    protected function renderBlock($stmts, $additional = null)
     {
         $result = $this->getIndent() . "{\n";
         $this->indent++;
+        if(!empty($additional))
+        {
+            foreach($additional as $line)
+                $result .= $this->getIndent() . $line . "\n";
+        }
+        $result .= $this->parseStatements($stmts);
+        $this->indent--;
+        $result .= $this->getIndent() . "}";
+        return $result;
+    }
+    
+    protected function parseBlock($stmts)
+    {
+        return $this->renderBlock($stmts);
+    }
+    
+    protected function parseStatements($stmts)
+    {
+        $result = "";
         foreach($stmts as $stmt)
             $result .= $this->parseStatement($stmt);
-        $this->indent--;
-        $result .= $this->getIndent() . "}\n";
         return $result;
     }
     
@@ -55,7 +67,7 @@ class Parser
     {
         $result = $this->getIndent() . $this->parseNode($stmt);
         $type = $stmt->getType();
-        if(!in_array($type, ["Stmt_While", "Stmt_Do", "Stmt_If", "Stmt_Switch", "Stmt_Case"]))
+        if(!in_array($type, ["Stmt_While", "Stmt_Do", "Stmt_If", "Stmt_Switch", "Stmt_Case", "Stmt_For", "Stmt_Foreach"]))
             $result .= ";";
         return $result . "\n";
     }
@@ -170,13 +182,13 @@ class Parser
                 return "while(" 
                     . $this->parseExpression($node->cond, true) 
                     . ")\n"
-                    . $this->parseStatements($node->stmts);
+                    . $this->parseBlock($node->stmts);
 
             case "Stmt_If":
                 $return = "if(" 
                     . $this->parseExpression($node->cond, true) 
                     . ")\n"
-                    . $this->parseStatements($node->stmts);
+                    . $this->parseBlock($node->stmts);
                 if(!empty($node->elseifs))
                     foreach($node->elseifs as $elseif)
                         $return .= $this->parseNode($elseif);
@@ -188,18 +200,18 @@ class Parser
                 return "else if(" 
                     . $this->parseExpression($node->cond, true) 
                     . ")\n"
-                    . $this->parseStatements($node->stmts);
+                    . $this->parseBlock($node->stmts);
 
             case "Stmt_Else":
                 $return = "else\n"
-                    . $this->parseStatements($node->stmts);
+                    . $this->parseBlock($node->stmts);
                 if(!empty($node->else))
                     $return .= $this->parseNode($node->else);
                 return $return;
 
             case "Stmt_Do":
                 return "do\n"
-                    . $this->parseStatements($node->stmts)
+                    . $this->parseBlock($node->stmts)
                     . "while(" 
                     . $this->parseExpression($node->cond, true) 
                     . ");\n";
@@ -212,13 +224,23 @@ class Parser
                     . "; "
                     . $this->parseExpressions($node->loop)
                     . ")\n"
-                    . $this->parseStatements($node->stmts);
+                    . $this->parseBlock($node->stmts);
+
+            case "Stmt_Foreach":
+                if($node->byRef)
+                    throw new \Exception("Cannot assign values by reference");
+                $source = $this->parseExpression($node->expr);
+                $additional = array($this->parseExpression($node->valueVar) . " = " . $source . "[_tmp];");
+                if($node->keyVar)
+                    $additional[] = $this->parseExpression($node->keyVar) . " = _tmp;";
+                return "for(_tmp in " . $source . ")\n"
+                    . $this->renderBlock($node->stmts, $additional);
 
             case "Stmt_Switch":
                 return "switch(" 
                     . $this->parseExpression($node->cond, true) 
                     . ")\n"
-                    . $this->parseStatements($node->cases);
+                    . $this->parseBlock($node->cases);
 
             case "Stmt_Case":
                 if(empty($node->cond))

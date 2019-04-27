@@ -1,0 +1,13 @@
+a = {
+    "a": 1,
+    "b": 2,
+    "c": 3
+};
+b = "";
+for(_tmp in a)
+{
+    d = a[_tmp];
+    c = _tmp;
+    b += c;
+}
+return b;
