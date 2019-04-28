@@ -9,6 +9,8 @@ use PhpParser\Node\Name;
 use PhpParser\Node;
 
 use Aftermarketpl\PHP2JS\Context\GlobalContext;
+use Aftermarketpl\PHP2JS\Action\InitializeAction;
+use Aftermarketpl\PHP2JS\Action\TypeAction;
 
 class Parser
 {
@@ -28,10 +30,19 @@ class Parser
     public function parse() : string
     {
         $parser = (new ParserFactory)->create(ParserFactory::PREFER_PHP7);
-        $ast = $parser->parse($this->code);
+        $stmts = $parser->parse($this->code);
         $context = new GlobalContext();
         
-        return $this->parseStatements($ast, $context);
+        do
+        {
+            $context->clearDirty();
+            foreach($stmts as $stmt)
+                $this->guessType($stmt, $context);
+        }
+        while($context->isDirty());
+        $return = $this->parseStatements($stmts, $context);
+//        print_r($context);
+        return $return;
     }
     
     protected function getIndent() : string
@@ -39,7 +50,7 @@ class Parser
         return str_repeat("    ", $this->indent);
     }
     
-    protected function renderBlock(array $stmts, ?array $additional, Context $context) : string
+    protected function renderBlock(array $stmts, ?array $additional, Context &$context) : string
     {
         $result = $this->getIndent() . "{\n";
         $this->indent++;
@@ -54,12 +65,12 @@ class Parser
         return $result;
     }
     
-    protected function parseBlock(array $stmts, Context $context) : string
+    protected function parseBlock(array $stmts, Context &$context) : string
     {
         return $this->renderBlock($stmts, null, $context);
     }
     
-    protected function parseStatements(array $stmts, Context $context) : string
+    protected function parseStatements(array $stmts, Context &$context) : string
     {
         $result = "";
         foreach($stmts as $stmt)
@@ -67,7 +78,7 @@ class Parser
         return $result;
     }
     
-    protected function parseStatement(Node $stmt, Context $context) : string
+    protected function parseStatement(Node $stmt, Context &$context) : string
     {
         $result = $this->getIndent() . $this->parseNode($stmt, $context);
         $type = $stmt->getType();
@@ -76,7 +87,7 @@ class Parser
         return $result . "\n";
     }
     
-    protected function parseExpressions(array $exprs, Context $context) : string
+    protected function parseExpressions(array $exprs, Context &$context) : string
     {
         $return = array();
         foreach($exprs as $expr)
@@ -86,7 +97,7 @@ class Parser
         return join(", ", $return);
     }
 
-    protected function parseExpression(Node $expr, Context $context) : string
+    protected function parseExpression(Node $expr, Context &$context) : string
     {
         $paren = $expr instanceof BinaryOp;
         
@@ -97,22 +108,22 @@ class Parser
         return $result;
     }
     
-    protected function renderAssignmentOperator(string $op, Node $node, Context $context) : string
+    protected function renderAssignmentOperator(string $op, Node $node, Context &$context) : string
     {
         return $this->parseNode($node->var, $context) . " " . $op . " " . $this->parseNode($node->expr, $context);
     }
     
-    protected function renderBinaryOperator(string $op, Node $node, Context $context) : string
+    protected function renderBinaryOperator(string $op, Node $node, Context &$context) : string
     {
         return $this->parseExpression($node->left, $context) . " " . $op . " " . $this->parseExpression($node->right, $context);
     }
     
-    protected function renderName(Node $node, Context $context) : string
+    protected function renderName(Node $node, Context &$context) : string
     {
         return join("\\", $node->parts);
     }
     
-    protected function parseNode(Node $node, Context $context) : string
+    protected function parseNode(Node $node, Context &$context, ?Action &$action = null) : string
     {
         $type = $node->getType();
         
@@ -154,6 +165,8 @@ class Parser
             case "Expr_Variable":
                 if(!is_string($node->name))
                     throw new \Exception("Cannot parse computed variable name");
+                $context->addVariable($node->name);
+                if($action) $action->onVariable($node->name);
                 return $node->name;
             
             /*
@@ -209,8 +222,6 @@ class Parser
             case "Stmt_Else":
                 $return = "else\n"
                     . $this->parseBlock($node->stmts, $context);
-                if(!empty($node->else))
-                    $return .= $this->parseNode($node->else, $context);
                 return $return;
 
             case "Stmt_Do":
@@ -262,11 +273,13 @@ class Parser
                 foreach($node->exprs as $expr)
                     $return[] = $this->parseNode($expr, $context);
                 return "console.log(" . join(", ", $return) . ")";
+
             case "Expr_Print":
                 return "console.log(" . $this->parseNode($node->expr, $context) . ")";
 
             case "Expr_List":
                 $return = array();
+                $action = new InitializeAction($context);
                 foreach($node->items as $item)
                 {
                     if(empty($item))
@@ -277,7 +290,7 @@ class Parser
                     {
                         if(!empty($item->key))
                             throw new \Exception("Array key assignment not allowed");
-                        $return[] = $this->parseNode($item, $context);
+                        $return[] = $this->parseNode($item, $context, $action);
                     }
                 }
                 return "[" . join(", ", $return) . "]";
@@ -345,7 +358,10 @@ class Parser
             case "Expr_Assign":
                 if($node->var instanceof ArrayDimFetch && empty($node->var->dim))
                     return "(" . $this->parseNode($node->var->var, $context) . ").push(" . $this->parseNode($node->expr, $context) . ")";
-                return $this->renderAssignmentOperator("=", $node, $context);
+                $action = new InitializeAction($context);
+                $left = $this->parseNode($node->var, $context, $action);
+                $right = $this->parseNode($node->expr, $context);
+                return $left . " = " . $right;
 
             case "Expr_AssignOp_Plus":
                 return $this->renderAssignmentOperator("+=", $node, $context);
@@ -466,7 +482,7 @@ class Parser
                 if(!empty($node->key))
                     return $this->parseNode($node->key, $context) . ": " . $this->parseNode($node->value, $context);
                 else
-                    return $this->parseNode($node->value, $context);
+                    return $this->parseNode($node->value, $context, $action);
 
             case "Expr_ArrayDimFetch":
                 if(empty($node->dim))
@@ -499,6 +515,268 @@ class Parser
 
             default:
                 throw new \Exception("Cannot parse: $type");
+        }
+    }
+
+    protected function chooseType(int $type1, int $type2) : int
+    {
+        if($type1 != Context::UNKNOWN)
+            return $type1;
+        else
+            return $type2;
+    }
+    
+    protected function singleType(Node $node, Context &$context, int $type) : int
+    {
+        $action = new TypeAction($context, $type);
+        $type2 =  $this->guessType($node, $context, $action);
+        return $type != Context::UNKNOWN ? $type : $type2;
+    }
+
+    protected function guessType(Node $node, Context &$context, ?Action $action = null) : int
+    {
+        $type = $node->getType();
+        
+        switch($type)
+        {
+            case "Stmt_Expression":
+                return $this->guessType($node->expr, $context);
+
+            /*
+             * Simple elements.
+             */
+            case "Scalar_LNumber":
+            case "Scalar_DNumber":
+                return Context::NUMBER;
+
+            case "Scalar_String":
+            case "Scalar_Encapsed":
+                return Context::STRING;
+
+            case "Expr_Variable":
+                if($action) $action->onVariable($node->name);
+                return $context->getType($node->name);
+
+            /*
+             * Language constructs.
+             */
+
+            case "Stmt_Return":
+                if(!empty($node->expr))
+                    $this->guessType($node->expr, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_While":
+            case "Stmt_ElseIf":
+            case "Stmt_Do":
+            case "Stmt_Case":
+                if(!empty($node->cond))
+                    $this->guessType($node->cond, $context);
+                foreach($node->stmts as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_If":
+                $this->guessType($node->cond, $context);
+                foreach($node->stmts as $stmt)
+                    $this->guessType($stmt, $context);
+                if(!empty($node->elseifs))
+                    foreach($node->elseifs as $elseif)
+                        $this->guessType($elseif, $context);
+                if(!empty($node->else))
+                    $this->guessType($node->else, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_Else":
+                foreach($node->stmts as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_For":
+                foreach($node->init as $stmt)
+                    $this->guessType($stmt, $context);
+                foreach($node->cond as $stmt)
+                    $this->guessType($stmt, $context);
+                foreach($node->loop as $stmt)
+                    $this->guessType($stmt, $context);
+                foreach($node->stmts as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_Foreach":
+                $this->guessType($node->expr, $context);
+                if($node->keyVar)
+                    $this->guessType($node->keyVar, $context);
+                foreach($node->stmts as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_Switch":
+                $this->guessType($node->cond, $context);
+                foreach($node->cases as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_Echo":
+                foreach($node->exprs as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::UNKNOWN;
+
+            case "Stmt_Print":
+                $this->guessType($node->expr, $context);
+                return Context::UNKNOWN;
+
+            case "Expr_List":
+                foreach($node->items as $stmt)
+                    $this->guessType($stmt, $context);
+                return Context::ARRAY;
+
+            case "Expr_Ternary":
+                return $this->chooseType($this->guessType($node->if, $context), $this->guessType($node->else, $context));
+
+            case "Expr_ErrorSuppress":
+                return $this->guessType($node->expr, $context);
+
+            /*
+             * Built in operations.
+             */
+
+            case "Expr_Isset":
+            case "Expr_Empty":
+                return Context::NUMBER;
+
+            /*
+             * Unary operators.
+             */
+            
+            case "Expr_UnaryMinus":
+            case "Expr_UnaryPlus":
+            case "Expr_BooleanNot":
+            case "Expr_BitwiseNot":
+                return $this->singleType($node->expr, $context, Context::NUMBER);
+                
+            case "Expr_PreDec":
+            case "Expr_PreInc":
+            case "Expr_PostDec":
+            case "Expr_PostInc":
+                return $this->singleType($node->var, $context, Context::NUMBER);
+            
+            /*
+             * Assignment operators.
+             */
+             
+            case "Expr_Assign":
+            case "Expr_AssignOp_Plus":
+                return $this->singleType($node->var, $context, $this->singleType($node->expr, $context, Context::UNKNOWN));
+
+            case "Expr_AssignOp_Minus":
+            case "Expr_AssignOp_Mul":
+            case "Expr_AssignOp_Div":
+            case "Expr_AssignOp_Mod":
+            case "Expr_AssignOp_ShiftLeft":
+            case "Expr_AssignOp_ShiftRight":
+            case "Expr_AssignOp_BitwiseAnd":
+            case "Expr_AssignOp_BitwiseOr":
+            case "Expr_AssignOp_BitwiseXor":
+                return $this->chooseType($this->singleType($node->var, $context, Context::NUMBER), $this->singleType($node->expr, $context, Context::NUMBER));
+
+            case "Expr_AssignOp_Concat":
+                return Context::STRING;
+
+            /*
+             * Binary operators.
+             */
+             
+            case "Expr_BinaryOp_Plus":
+                $type = $this->singleType($node->left, $context, Context::UNKNOWN);
+                if($type != Context::UNKNOWN)
+                    return $this->singleType($node->right, $context, $type);
+                else
+                    return $this->singleType($node->left, $context, $this->singleType($node->right, $context, Context::UNKNOWN));
+
+            case "Expr_BinaryOp_Minus":
+            case "Expr_BinaryOp_Mul":
+            case "Expr_BinaryOp_Div":
+            case "Expr_BinaryOp_Mod":
+            case "Expr_BinaryOp_ShiftLeft":
+            case "Expr_BinaryOp_ShiftRight":
+            case "Expr_BinaryOp_BitwiseAnd":
+            case "Expr_BinaryOp_BitwiseOr":
+            case "Expr_BinaryOp_BitwiseXor":
+            case "Expr_BinaryOp_BooleanAnd":
+            case "Expr_BinaryOp_BooleanOr":
+            case "Expr_BinaryOp_Equal":
+            case "Expr_BinaryOp_NotEqual":
+            case "Expr_BinaryOp_Greater":
+            case "Expr_BinaryOp_Smaller":
+            case "Expr_BinaryOp_GreaterOrEqual":
+            case "Expr_BinaryOp_SmallerOrEqual":
+            case "Expr_BinaryOp_Identical":
+            case "Expr_BinaryOp_NotIdentical":
+            case "Expr_BinaryOp_Pow":
+                return $this->chooseType($this->singleType($node->left, $context, Context::NUMBER), $this->singleType($node->right, $context, Context::NUMBER));
+
+            case "Expr_BinaryOp_Concat":
+                return $this->chooseType($this->singleType($node->left, $context, Context::STRING), $this->singleType($node->right, $context, Context::STRING));
+
+            case "Expr_BinaryOp_Coalesce":
+                return $this->chooseType($this->singleType($node->left, $context, Context::UNKNOWN), $this->singleType($node->right, $context, Context::UNKNOWN));
+
+            case "Expr_BinaryOp_LogicalAnd":
+            case "Expr_BinaryOp_LogicalOr":
+                return $this->chooseType($this->singleType($node->left, $context, Context::UNKNOWN), $this->singleType($node->right, $context, Context::UNKNOWN));
+
+            /*
+             * Cast operators.
+             */
+
+            case "Expr_Cast_Int":
+            case "Expr_Cast_Double":
+            case "Expr_Cast_Boolean":
+                $this->guessType($node->expr, $context);
+                return Context::NUMBER;
+
+            case "Expr_Cast_String":
+                $this->guessType($node->expr, $context);
+                return Context::STRING;
+
+            case "Expr_Cast_Array":
+                $this->guessType($node->expr, $context);
+                return Context::ARRAY;
+
+            /*
+             * Arrays.
+             */
+
+            case "Expr_Array":
+                foreach($node->items as $item)
+                    $this->guessType($item, $context);
+                return Context::ARRAY;
+
+            case "Expr_ArrayDimFetch":
+                if(!empty($node->dim))
+                    $this->guessType($node->dim, $context);
+                return Context::UNKNOWN;
+
+            /*
+             * Function calls.
+             */
+
+            case "Expr_FuncCall":
+                foreach($node->args as $arg)
+                    $this->guessType($arg, $context);
+                // TODO
+                return Context::UNKNOWN;
+
+            case "Arg":
+                $this->guessType($node->value, $context);
+
+            /*
+             * Unknown node types.
+             */
+
+            default:
+                return Context::UNKNOWN;
         }
     }
 }
