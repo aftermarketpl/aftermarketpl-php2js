@@ -11,15 +11,21 @@ class Environment
         "stringval" => "String",
         "boolval" => "Boolean",
 
+        "chr" => "String.fromCharCode",
+        "chop" => "(%1).trimEnd()",
+        "ltrim" => "(%1).trimStart()",
+        "rtrim" => "(%1).trimEnd()",
         "strlen" => "(%1).length",
         "substr" => "?",
         "strtolower" => "(%1).toLowerCase()",
         "strtoupper" => "(%1).toUpperCase()",
+        "strrev" => "(%1).split('').reverse().join('')",
+        "trim" => "(%1).trim()",
 
         "mb_strlen" => "(%1).length",
         "mb_substr" => "?",
-        "mb_strtolower" => "(%1).toLowerCase()",
-        "mb_strtoupper" => "(%1).toUpperCase()",
+        "mb_strtolower" => "(%1).toLocaleLowerCase()",
+        "mb_strtoupper" => "(%1).toLocaleUpperCase()",
     ];
     const FUNCTIONS = [];
     
