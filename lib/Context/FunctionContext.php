@@ -74,7 +74,7 @@ class FunctionContext extends Context
     {
         if($type != Context::UNKNOWN)
         {
-            if($this->returnType != Context::UNKNOWN)
+            if($this->returnType == Context::UNKNOWN)
                 $this->dirty = true;
             $this->returnType = $type;
         }

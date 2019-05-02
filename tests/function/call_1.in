@@ -1,0 +1,6 @@
+function f_call1($param)
+{
+    return $param;
+}
+return f_call1(2);
+

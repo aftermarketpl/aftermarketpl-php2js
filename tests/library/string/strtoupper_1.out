@@ -1,2 +1,3 @@
+var a;
 a = "aBcD";
 return (a).toUpperCase();

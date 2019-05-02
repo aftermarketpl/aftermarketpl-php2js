@@ -1,0 +1,7 @@
+$v = 2;
+function f_call3($param)
+{
+    return ++$param;
+}
+f_call3($v);
+return $v;

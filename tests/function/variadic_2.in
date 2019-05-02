@@ -1,0 +1,5 @@
+function f_variadic2($param, ...$params)
+{
+    return $params[1];
+}
+return f_variadic2(2, 3, 4);

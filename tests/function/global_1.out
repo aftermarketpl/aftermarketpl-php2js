@@ -1,0 +1,8 @@
+var __global;
+__global = 1;
+function f_global1()
+{
+    __global++;
+}
+f_global1();
+return __global;

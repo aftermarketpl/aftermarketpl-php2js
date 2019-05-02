@@ -1,13 +1,14 @@
+var a, b, d, c;
 a = {
     "a": 1,
     "b": 2,
     "c": 3
 };
 b = "";
-for(_tmp in a)
+for(let __tmp in a)
 {
-    d = a[_tmp];
-    c = _tmp;
+    d = a[__tmp];
+    c = __tmp;
     b += c;
 }
 return b;

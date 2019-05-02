@@ -37,7 +37,11 @@ class Parser
         
         $this->guessTypes($stmts, $context);
         $return = $this->parseStatements($stmts, $context);
-        print_r($context);
+        $variables = $context->getVariables();
+        if(count($variables))
+        {
+            $return = "var " . join(", ", $variables) . ";\n" . $return;
+        }
         return $return;
     }
     
@@ -248,10 +252,10 @@ class Parser
                 if($node->byRef)
                     throw new \Exception("Cannot assign values by reference");
                 $source = $this->parseNode($node->expr, $context);
-                $additional = array($this->parseNode($node->valueVar, $context) . " = " . $source . "[_tmp];");
+                $additional = array($this->parseNode($node->valueVar, $context) . " = " . $source . "[__tmp];");
                 if($node->keyVar)
                     $additional[] = $this->parseNode($node->keyVar, $context) . " = __tmp;";
-                return "for(let __tmp of " . $source . ")\n"
+                return "for(let __tmp in " . $source . ")\n"
                     . $this->renderBlock($node->stmts, $context, function(Context $context) use($additional) { return $additional; });
 
             case "Stmt_Switch":
@@ -552,10 +556,11 @@ class Parser
                     return "return " . $this->parseNode($node->expr, $context);
 
             case "Stmt_Global":
-                if(!($context instanceOf FunctionContext))
-                    throw new \Exception("Global keyword outside function");
-                foreach($node->vars as $var)
-                    $context->addGlobal($var->name);
+                if($context instanceOf FunctionContext)
+                {
+                    foreach($node->vars as $var)
+                        $context->addGlobal($var->name);
+                }
                 return "";
 
 

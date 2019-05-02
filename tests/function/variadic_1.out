@@ -1,0 +1,7 @@
+function f_variadic1(...__par1)
+{
+    var params;
+    params = __par1;
+    return params[1];
+}
+return f_variadic1(2, 3, 4);

@@ -1,3 +1,4 @@
+var a, b;
 a = "\u0105\u0106\u0119\u0141";
 b = 2;
 return (a).substr(b);

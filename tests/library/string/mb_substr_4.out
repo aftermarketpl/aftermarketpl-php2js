@@ -1,2 +1,3 @@
+var a;
 a = "\u0105\u0106\u0119\u0141";
 return (function(s, x, y){ if(y < 0) return s.substring(x, s.length+y); else return s.substr(x, y); })(a, 1, -2);

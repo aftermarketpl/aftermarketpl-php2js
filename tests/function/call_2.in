@@ -1,0 +1,7 @@
+$v = 2;
+function f_call2($param)
+{
+    return $param;
+}
+return f_call2($v);
+

@@ -116,6 +116,10 @@ abstract class Context
     {
         return array_keys($this->variables);
     }
+
+    public function setReturnType(int $type) : void
+    {
+    }
 }
 
 ?>
