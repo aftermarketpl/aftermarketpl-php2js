@@ -6,9 +6,11 @@ use PhpParser\ParserFactory;
 use PhpParser\Node\Expr\BinaryOp;
 use PhpParser\Node\Expr\ArrayDimFetch;
 use PhpParser\Node\Name;
+use PhpParser\Node\Identifier;
 use PhpParser\Node;
 
 use Aftermarketpl\PHP2JS\Context\GlobalContext;
+use Aftermarketpl\PHP2JS\Context\FunctionContext;
 use Aftermarketpl\PHP2JS\Action\InitializeAction;
 use Aftermarketpl\PHP2JS\Action\TypeAction;
 
@@ -33,6 +35,14 @@ class Parser
         $stmts = $parser->parse($this->code);
         $context = new GlobalContext();
         
+        $this->guessTypes($stmts, $context);
+        $return = $this->parseStatements($stmts, $context);
+        print_r($context);
+        return $return;
+    }
+    
+    protected function guessTypes(array $stmts, Context &$context)
+    {
         do
         {
             $context->clearDirty();
@@ -40,9 +50,6 @@ class Parser
                 $this->guessType($stmt, $context);
         }
         while($context->isDirty());
-        $return = $this->parseStatements($stmts, $context);
-//        print_r($context);
-        return $return;
     }
     
     protected function getIndent() : string
@@ -50,24 +57,23 @@ class Parser
         return str_repeat("    ", $this->indent);
     }
     
-    protected function renderBlock(array $stmts, ?array $additional, Context &$context) : string
+    protected function renderBlock(array $stmts, Context &$context, callable $more) : string
     {
         $result = $this->getIndent() . "{\n";
         $this->indent++;
-        if(!empty($additional))
-        {
-            foreach($additional as $line)
-                $result .= $this->getIndent() . $line . "\n";
-        }
-        $result .= $this->parseStatements($stmts, $context);
+        $result2 .= $this->parseStatements($stmts, $context);
+        $additional = $more($context);
+        foreach($additional as $line)
+            $result .= $this->getIndent() . $line . "\n";
         $this->indent--;
+        $result .= $result2;
         $result .= $this->getIndent() . "}";
         return $result;
     }
     
     protected function parseBlock(array $stmts, Context &$context) : string
     {
-        return $this->renderBlock($stmts, null, $context);
+        return $this->renderBlock($stmts, $context, function(Context $context) { return array(); });
     }
     
     protected function parseStatements(array $stmts, Context &$context) : string
@@ -82,9 +88,12 @@ class Parser
     {
         $result = $this->getIndent() . $this->parseNode($stmt, $context);
         $type = $stmt->getType();
-        if(!in_array($type, ["Stmt_While", "Stmt_Do", "Stmt_If", "Stmt_Switch", "Stmt_Case", "Stmt_For", "Stmt_Foreach"]))
+        if(!in_array($type, ["Stmt_While", "Stmt_Do", "Stmt_If", "Stmt_Switch", "Stmt_Case", "Stmt_For", "Stmt_Foreach", "Stmt_Function", "Stmt_Global"]))
             $result .= ";";
-        return $result . "\n";
+        if(!in_array($type, ["Stmt_Global"]))
+            return $result . "\n";
+        else
+            return "";
     }
     
     protected function parseExpressions(array $exprs, Context &$context) : string
@@ -179,12 +188,6 @@ class Parser
             case "Stmt_Label":
                 return "";
 
-            case "Stmt_Return":
-                if(empty($node->expr))
-                    return "return";
-                else
-                    return "return " . $this->parseNode($node->expr, $context);
-
             case "Stmt_Break":
                 if(!empty($node->num))
                     throw new \Exception("Cannot break with an argument");
@@ -247,9 +250,9 @@ class Parser
                 $source = $this->parseNode($node->expr, $context);
                 $additional = array($this->parseNode($node->valueVar, $context) . " = " . $source . "[_tmp];");
                 if($node->keyVar)
-                    $additional[] = $this->parseNode($node->keyVar, $context) . " = _tmp;";
-                return "for(_tmp in " . $source . ")\n"
-                    . $this->renderBlock($node->stmts, $additional, $context);
+                    $additional[] = $this->parseNode($node->keyVar, $context) . " = __tmp;";
+                return "for(let __tmp of " . $source . ")\n"
+                    . $this->renderBlock($node->stmts, $context, function(Context $context) use($additional) { return $additional; });
 
             case "Stmt_Switch":
                 return "switch(" 
@@ -500,7 +503,10 @@ class Parser
                 $args = array();
                 foreach($node->args as $arg)
                     $args[] = $this->parseNode($arg, $context);
-                return $this->environment->translateFunction($name, $args);
+                if(!$context->getGlobal()->hasFunction($name))
+                    return $this->environment->translateFunction($name, $args);
+                else
+                    return $name . "(" . join(", ", $args) . ")";
 
             case "Arg":
                 if($node->byRef)
@@ -508,6 +514,50 @@ class Parser
                 if($node->unpack)
                     throw new \Exception("Cannot unpack values");
                 return $this->parseNode($node->value, $context);
+
+            /*
+             * Function definitions.
+             */
+
+            case "Stmt_Function":
+                $name = $node->name->name;
+                $context->getGlobal()->addFunction($name);
+                $newContext = new FunctionContext($context->getGlobal(), $context);
+                $params = array();
+                foreach($node->params as $arg)
+                    $params[] = $this->parseNode($arg, $newContext);
+                $additional = array();
+                $cnt = 0;
+                foreach($newContext->getParameters() as $param)
+                    $additional[] = $param . " = __par" . (++$cnt) . ";";
+                return "function " . $name . "(" . join(", ", $params) . ")\n"
+                    . $this->renderBlock($node->stmts, $newContext, 
+                        function(Context $context) use($additional) { 
+                            $ret = $additional;
+                            $vars = $context->getVariables();
+                            if(!empty($vars)) array_unshift($ret, "var " . join(", ", $vars) . ";");
+                            return $ret; 
+                    });
+
+            case "Param":
+                if($node->byRef)
+                    throw new \Exception("Cannot pass parameters by reference");
+                $name = $node->var->name;
+                return ($node->variadic ? "..." : "") . "__par" . $context->addParameter($name);
+
+            case "Stmt_Return":
+                if(empty($node->expr))
+                    return "return";
+                else
+                    return "return " . $this->parseNode($node->expr, $context);
+
+            case "Stmt_Global":
+                if(!($context instanceOf FunctionContext))
+                    throw new \Exception("Global keyword outside function");
+                foreach($node->vars as $var)
+                    $context->addGlobal($var->name);
+                return "";
+
 
             /*
              * Unknown node types.
@@ -526,7 +576,31 @@ class Parser
             return $type2;
     }
     
-    protected function singleType(Node $node, Context &$context, int $type) : int
+    protected function convertType(?Node $node) : int
+    {
+        if($node instanceof Identifier)
+        {
+            switch($node->name)
+            {
+                case "bool":
+                case "int":
+                case "float":
+                    return Context::NUMBER;
+                case "string":
+                    return Context::STRING;
+                case "array":
+                    return Context::ARRAY;
+                case "callable":
+                case "void":
+                    return Context::UNKNOWN;
+                default:
+                    return Context::OBJECT;
+            }
+        }
+        return Context::UNKNOWN;
+    }
+    
+    protected function singleType(Node $node, Context &$context, int $type = Context::UNKNOWN) : int
     {
         $action = new TypeAction($context, $type);
         $type2 =  $this->guessType($node, $context, $action);
@@ -561,10 +635,6 @@ class Parser
              * Language constructs.
              */
 
-            case "Stmt_Return":
-                if(!empty($node->expr))
-                    $this->guessType($node->expr, $context);
-                return Context::UNKNOWN;
 
             case "Stmt_While":
             case "Stmt_ElseIf":
@@ -667,7 +737,7 @@ class Parser
              
             case "Expr_Assign":
             case "Expr_AssignOp_Plus":
-                return $this->singleType($node->var, $context, $this->singleType($node->expr, $context, Context::UNKNOWN));
+                return $this->singleType($node->var, $context, $this->singleType($node->expr, $context));
 
             case "Expr_AssignOp_Minus":
             case "Expr_AssignOp_Mul":
@@ -688,11 +758,11 @@ class Parser
              */
              
             case "Expr_BinaryOp_Plus":
-                $type = $this->singleType($node->left, $context, Context::UNKNOWN);
+                $type = $this->singleType($node->left, $context);
                 if($type != Context::UNKNOWN)
                     return $this->singleType($node->right, $context, $type);
                 else
-                    return $this->singleType($node->left, $context, $this->singleType($node->right, $context, Context::UNKNOWN));
+                    return $this->singleType($node->left, $context, $this->singleType($node->right, $context));
 
             case "Expr_BinaryOp_Minus":
             case "Expr_BinaryOp_Mul":
@@ -720,11 +790,11 @@ class Parser
                 return $this->chooseType($this->singleType($node->left, $context, Context::STRING), $this->singleType($node->right, $context, Context::STRING));
 
             case "Expr_BinaryOp_Coalesce":
-                return $this->chooseType($this->singleType($node->left, $context, Context::UNKNOWN), $this->singleType($node->right, $context, Context::UNKNOWN));
+                return $this->chooseType($this->singleType($node->left, $context), $this->singleType($node->right, $context));
 
             case "Expr_BinaryOp_LogicalAnd":
             case "Expr_BinaryOp_LogicalOr":
-                return $this->chooseType($this->singleType($node->left, $context, Context::UNKNOWN), $this->singleType($node->right, $context, Context::UNKNOWN));
+                return $this->chooseType($this->singleType($node->left, $context), $this->singleType($node->right, $context));
 
             /*
              * Cast operators.
@@ -763,13 +833,59 @@ class Parser
              */
 
             case "Expr_FuncCall":
-                foreach($node->args as $arg)
-                    $this->guessType($arg, $context);
-                // TODO
+                if($node->name instanceof Name)
+                {
+                    $name = $this->renderName($node->name, $context);
+                    foreach($node->args as $arg)
+                        $this->guessType($arg, $context);
+                    if(!$context->getGlobal()->hasFunction($name))
+                        return Context::UNKNOWN;
+                    else
+                        return $context->getGlobal()->functionReturnType($name);
+                }
                 return Context::UNKNOWN;
 
             case "Arg":
                 $this->guessType($node->value, $context);
+                return Context::UNKNOWN;
+
+            /*
+             * Function definitions.
+             */
+
+            case "Stmt_Function":
+                $name = $node->name->name;
+                $newContext = new FunctionContext($context->getGlobal(), $context);
+                $params = array();
+                foreach($node->params as $arg)
+                    $this->guessType($arg, $newContext);
+                $this->guessTypes($node->stmts, $newContext);
+                $context->getGlobal()->addFunction($name, $this->chooseType(
+                    $this->convertType($node->returnType),
+                    $newContext->getReturnType()));
+                return Context::UNKNOWN;
+
+            case "Param":
+                $name = $node->var->name;
+                $context->addParameter($name, $node->variadic ? Context::ARRAY : $this->convertType($node->type));
+                return Context::UNKNOWN;
+
+            case "Stmt_Return":
+                if(!empty($node->expr))
+                {
+                    $type = $this->guessType($node->expr, $context);
+                    $context->setReturnType($type);
+                    return $type;
+                }
+                return Context::UNKNOWN;
+
+            case "Stmt_Global":
+                if($context instanceOf FunctionContext)
+                {
+                    foreach($node->vars as $var)
+                        $context->addGlobal($var->name);
+                }
+                return Context::UNKNOWN;
 
             /*
              * Unknown node types.

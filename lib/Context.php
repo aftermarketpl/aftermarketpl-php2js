@@ -106,6 +106,12 @@ abstract class Context
         return $var["type"] ?? self::UNKNOWN;
     }
     
+    public function getInitialized(string $name) : bool
+    {
+        $var = $this->findVariable($name);
+        return $var["initialized"] ?? false;
+    }
+    
     public function getVariables() : array
     {
         return array_keys($this->variables);
