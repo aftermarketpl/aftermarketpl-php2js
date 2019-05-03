@@ -18,17 +18,15 @@ At this point the transpiler will convert most of **functional** PHP code, which
 ```php
 function myFunc($param)
 {
-	return $param + 1;
+    return $param + 1;
 }
 $d = $a ? $b + myFunc($c) : $b ** $c;
 ```
 The resulting JavaScript is:
 ```JavaScript
 var b, c, d, a;
-function myFunc(__par1)
+function myFunc(param)
 {
-    var param;
-    param = __par1;
     return param + 1;
 }
 d = a ? b + myFunc(c) : Math.pow(b, c);
