@@ -1,0 +1,5 @@
+function f_array1($a)
+{
+    return $a;
+}
+return f_array1(array(1, 2, 3));

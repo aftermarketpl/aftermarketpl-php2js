@@ -1,0 +1,13 @@
+var a;
+a = [
+    1,
+    2,
+    3
+];
+function f_array2(b)
+{
+    b = b.slice(0);
+    b[1] = 4;
+}
+f_array2(a);
+return a[1];

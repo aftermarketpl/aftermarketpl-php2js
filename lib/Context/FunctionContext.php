@@ -3,26 +3,36 @@
 namespace Aftermarketpl\PHP2JS\Context;
 
 use Aftermarketpl\PHP2JS\Context;
+use PhpParser\Node\Stmt\Function_;
 
 class FunctionContext extends Context
 {
+    protected $node;
+
     protected $parameters;
 
     protected $globals;
     
     protected $returnType;
 
-    public function __construct(Context $global = null, Context $parent = null)
+    public function __construct(Function_ $node = null, Context $parent = null)
     {
-        parent::__construct($global, $parent);
+        parent::__construct($parent->getGlobal(), $parent);
+        $this->node = $node;
         $this->parameters = array();
         $this->globals = array();
         $this->returnType = Context::UNKNOWN;
     }
+    
+    public function getNode()
+    {
+        return $this->node;
+    }
 
     public function addParameter(string $name, int $type = self::UNKNOWN) : int
     {
-        $this->parameters[] = $name;
+        if(!in_array($name, $this->parameters))
+            $this->parameters[] = $name;
         $this->addVariable($name, true, $type);
         return count($this->parameters);
     }
@@ -77,6 +87,7 @@ class FunctionContext extends Context
             if($this->returnType == Context::UNKNOWN)
                 $this->dirty = true;
             $this->returnType = $type;
+            $this->global->addFunction($this->node->name->name, $type);
         }
     }
 

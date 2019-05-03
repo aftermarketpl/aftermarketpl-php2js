@@ -1,0 +1,7 @@
+$v = 2;
+function f_local1($param)
+{
+    $v = $param;
+}
+f_local1(3);
+return $v;

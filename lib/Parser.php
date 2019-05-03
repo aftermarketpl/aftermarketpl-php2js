@@ -526,19 +526,27 @@ class Parser
             case "Stmt_Function":
                 $name = $node->name->name;
                 $context->getGlobal()->addFunction($name);
-                $newContext = new FunctionContext($context->getGlobal(), $context);
+                $newContext = $context->getGlobal()->getFunctionContext($node, $context);
                 $params = array();
-                foreach($node->params as $arg)
-                    $params[] = $this->parseNode($arg, $newContext);
                 $additional = array();
+                foreach($node->params as $arg)
+                {
+                    $vname = $arg->var->name;
+                    $params[] = $this->parseNode($arg, $newContext);
+                    $type = $newContext->getType($vname);
+                    if($type == Context::ARRAY)
+                        $additional[] = $vname . " = " . $vname . ".slice(0);";
+                    elseif($type == Context::UNKNOWN)
+                        $additional[] = "if(" . $vname . " instanceof Array) " . $vname . " = " . $vname . ".slice(0);";
+                }
                 $cnt = 0;
-                foreach($newContext->getParameters() as $param)
-                    $additional[] = $param . " = __par" . (++$cnt) . ";";
                 return "function " . $name . "(" . join(", ", $params) . ")\n"
                     . $this->renderBlock($node->stmts, $newContext, 
                         function(Context $context) use($additional) { 
                             $ret = $additional;
-                            $vars = $context->getVariables();
+                            $vars1 = $context->getVariables();
+                            $vars2 = $context->getParameters();
+                            $vars = array_diff($vars1, $vars2);
                             if(!empty($vars)) array_unshift($ret, "var " . join(", ", $vars) . ";");
                             return $ret; 
                     });
@@ -547,7 +555,11 @@ class Parser
                 if($node->byRef)
                     throw new \Exception("Cannot pass parameters by reference");
                 $name = $node->var->name;
-                return ($node->variadic ? "..." : "") . "__par" . $context->addParameter($name);
+                $context->addParameter($name);
+                $return = ($node->variadic ? "..." : "") . $name;
+                if(!empty($node->default))
+                    $return .= " = " . $this->parseNode($node->default, $context);
+                return $return;
 
             case "Stmt_Return":
                 if(empty($node->expr))
@@ -703,7 +715,8 @@ class Parser
 
             case "Expr_List":
                 foreach($node->items as $stmt)
-                    $this->guessType($stmt, $context);
+                    if($stmt)
+                        $this->guessType($stmt, $context);
                 return Context::ARRAY;
 
             case "Expr_Ternary":
@@ -841,18 +854,36 @@ class Parser
                 if($node->name instanceof Name)
                 {
                     $name = $this->renderName($node->name, $context);
-                    foreach($node->args as $arg)
-                        $this->guessType($arg, $context);
                     if(!$context->getGlobal()->hasFunction($name))
+                    {
+                        foreach($node->args as $arg)
+                            $this->guessType($arg, $context);
                         return Context::UNKNOWN;
+                    }
                     else
+                    {
+                        $newContext = $context->getGlobal()->findFunctionContext($node->name, $context);
+                        if(!$newContext)
+                            return Context::UNKNOWN;
+                        $newContext->clearDirty();
+                        $params = $newContext->getParameters();
+                        $cnt = 0;
+                        foreach($node->args as $arg)
+                        {
+                            if(isset($params[$cnt]))
+                                $newContext->typeVariable($params[$cnt++], $this->guessType($arg, $context));
+                            else
+                                $this->guessType($arg, $context);
+                        }
+                        if($newContext->isDirty())
+                            $this->guessTypes($newContext->getNode()->stmts, $newContext);
                         return $context->getGlobal()->functionReturnType($name);
+                    }
                 }
                 return Context::UNKNOWN;
 
             case "Arg":
-                $this->guessType($node->value, $context);
-                return Context::UNKNOWN;
+                return $this->guessType($node->value, $context);
 
             /*
              * Function definitions.
@@ -860,7 +891,7 @@ class Parser
 
             case "Stmt_Function":
                 $name = $node->name->name;
-                $newContext = new FunctionContext($context->getGlobal(), $context);
+                $newContext = $context->getGlobal()->getFunctionContext($node, $context);
                 $params = array();
                 foreach($node->params as $arg)
                     $this->guessType($arg, $newContext);
@@ -872,7 +903,10 @@ class Parser
 
             case "Param":
                 $name = $node->var->name;
-                $context->addParameter($name, $node->variadic ? Context::ARRAY : $this->convertType($node->type));
+                $type = $node->variadic ? Context::ARRAY : $this->convertType($node->type);
+                if($type == Context::UNKNOWN && $node->default)
+                    $type = $this->guessType($node->default, $context);
+                $context->addParameter($name, $type);
                 return Context::UNKNOWN;
 
             case "Stmt_Return":

@@ -10,12 +10,17 @@ class TranslatorTest extends TestCase
     /**
      * @dataProvider translationProvider
      */
-    public function testTranslation($php, $js)
+    public function testTranslation($php, $js, $file)
     {
         $resultPHP = eval($php);
 
         $exec = new PhpExecJs();
         $resultJS = $exec->evalJs("(function() { " . $js . "})()");
+
+        $out = pathinfo($file, PATHINFO_DIRNAME) . "/" . pathinfo($file, PATHINFO_FILENAME) . ".res";
+        $f = fopen($out, "w");
+        fputs($f, json_encode($resultPHP));
+        fclose($f);
         
         $this->assertEquals($resultPHP, $resultJS);
     }
@@ -42,7 +47,7 @@ class TranslatorTest extends TestCase
                 fputs($f, $js);
                 fclose($f);
                 
-                $tests[$file] = array($php, $js);
+                $tests[$file] = array($php, $js, $path . "/" . $file);
             }
         }
         

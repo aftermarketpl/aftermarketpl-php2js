@@ -1,0 +1,9 @@
+var v;
+v = 2;
+function f_local1(param)
+{
+    var v;
+    v = param;
+}
+f_local1(3);
+return v;

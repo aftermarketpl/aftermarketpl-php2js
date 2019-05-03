@@ -1,0 +1,5 @@
+function f_default1($a = 2)
+{
+    return $a;
+}
+return f_default1();

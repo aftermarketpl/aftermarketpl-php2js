@@ -1,7 +1,5 @@
-function f_call1(__par1)
+function f_call1(param)
 {
-    var param;
-    param = __par1;
     return param;
 }
 return f_call1(2);

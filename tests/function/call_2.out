@@ -1,9 +1,7 @@
 var v;
 v = 2;
-function f_call2(__par1)
+function f_call2(param)
 {
-    var param;
-    param = __par1;
     return param;
 }
 return f_call2(v);

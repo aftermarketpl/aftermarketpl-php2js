@@ -1,0 +1,2 @@
+list($a, list($b, $c)) = array(1, array(2, 3));
+return $b;

@@ -3,6 +3,7 @@
 namespace Aftermarketpl\PHP2JS\Context;
 
 use Aftermarketpl\PHP2JS\Context;
+use PhpParser\Node\Stmt\Function_;
 
 class GlobalContext extends Context
 {
@@ -18,7 +19,10 @@ class GlobalContext extends Context
     {
         if(!isset($this->functions[$name]))
         {
-            $this->functions[$name] = array("return" => $type);
+            $this->functions[$name] = array(
+                "return" => $type,
+                "context" => null,
+            );
             if($type != Context::UNKNOWN)
                 $this->dirty = true;
         }
@@ -30,6 +34,23 @@ class GlobalContext extends Context
         }
     }
     
+
+    public function getFunctionContext(Function_ $node, Context $context) : FunctionContext
+    {
+        $name = $node->name->name;
+        $this->addFunction($name);
+        if(!isset($this->functions[$name]["context"]))
+        {
+            $this->functions[$name]["context"] = new FunctionContext($node, $context);
+        }
+        return $this->functions[$name]["context"];
+    }
+
+    public function findFunctionContext(string $name, Context $context) : FunctionContext
+    {
+        return $this->functions[$name]["context"] ?? null;
+    }
+
     public function hasFunction(string $name) : bool
     {
         return isset($this->functions[$name]);

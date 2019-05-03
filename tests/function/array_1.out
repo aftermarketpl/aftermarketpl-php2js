@@ -1,0 +1,10 @@
+function f_array1(a)
+{
+    a = a.slice(0);
+    return a;
+}
+return f_array1([
+    1,
+    2,
+    3
+]);

@@ -1,0 +1,7 @@
+$a = array(1, 2, 3);
+function f_array2($b)
+{
+    $b[1] = 4;
+}
+f_array2($a);
+return $a[1];

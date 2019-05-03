@@ -1,0 +1,5 @@
+function f_default2(a = 2)
+{
+    return a;
+}
+return f_default2(3);
