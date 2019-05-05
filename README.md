@@ -1,3 +1,4 @@
+
 # aftermarketpl-php2js
 
 This project aims to create a fairly complete PHP to JavaScript transpiler.
@@ -13,14 +14,24 @@ The most important design goals of the converter are as follows:
 ## Limitations
 Since it is not a general purpose transpiler, there are limits on what the transpiler accepts. If it encounters PHP code which it cannot transpile properly, it will normally throw an exception, although in some edge cases it can produce JavaScript code from PHP code it should theoretically not support; such code is not guaranteed to run properly.
 
-At this point the transpiler will convert most of **inline** PHP code, which does not contain any function or class definitions. Thus, the following sample PHP code will translate nicely to JavaScript:
+At this point the transpiler will convert most of **functional** PHP code, which does not contain any class definitions or usage. Thus, the following sample PHP code will translate nicely to JavaScript:
 ```php
-$d = $a ? $b + $c : $b ** $c;
+function myFunc($param)
+{
+    return $param + 1;
+}
+$d = $a ? $b + myFunc($c) : $b ** $c;
 ```
 The resulting JavaScript is:
 ```JavaScript
-d = a ? (b + c) : (Math.pow(b, c));
+var b, c, d, a;
+function myFunc(param)
+{
+    return param + 1;
+}
+d = a ? b + myFunc(c) : Math.pow(b, c);
 ```
+The produced code is easily readable by humans, and contains only minimum overhead.
 
 ### PHP syntax not yet accepted:
 
@@ -45,6 +56,7 @@ $b = $a[1]; // Use substr() instead
 
 Again, with the plus operator the transpiler does not know if the variable is a numeric or an array. PHP 7 type hinting may improve this as well.
 ```php
+$array = array();
 $a = $array + $array2;
 ```
 
@@ -64,10 +76,10 @@ $a **= $c;
 They cannot be easily reproduced in JavaScript in general.
 ```php
 $a = &$b;
-function(&$a) {}
+function func(&$a) {}
 ```
 
-**Multi-leve break and continue**
+**Multi-level break and continue**
 
 They cannot be easily reproduced in JavaScript in general.
 ```php
@@ -75,9 +87,9 @@ continue 2;
 break $a;
 ```
 
-### Functions, classes and exceptions:
+### Classes and exceptions:
 
-These are at the moment not supported at all, but we intend to work on them so you can expect a fairly broad support in the future.
+They are at the moment not supported at all, but we intend to work on them so you can expect a fairly broad support in the future.
 
 ## PHP standard library
 
