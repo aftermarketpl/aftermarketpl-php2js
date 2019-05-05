@@ -1,13 +1,13 @@
 var a;
-a = [
-    1,
-    2,
-    3
-];
-function f_array2(b)
+a = {
+    "a": 1,
+    "b": 2,
+    "c": 3
+};
+function f_array3(b)
 {
     if(b instanceof Array) b = b.slice(0); else if(b instanceof Object && b.constructor.name == 'Object') b = Object.assign({}, b);
-    b[1] = 4;
+    b["b"] = 4;
 }
-f_array2(a);
-return a[1];
+f_array3(a);
+return a["b"];

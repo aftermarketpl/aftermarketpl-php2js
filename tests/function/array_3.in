@@ -1,0 +1,7 @@
+$a = array("a" => 1, "b" => 2, "c" => 3);
+function f_array3($b)
+{
+    $b["b"] = 4;
+}
+f_array3($a);
+return $a["b"];

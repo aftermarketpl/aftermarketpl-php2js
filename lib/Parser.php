@@ -534,10 +534,8 @@ class Parser
                     $vname = $arg->var->name;
                     $params[] = $this->parseNode($arg, $newContext);
                     $type = $newContext->getType($vname);
-                    if($type == Context::ARRAY)
-                        $additional[] = $vname . " = " . $vname . ".slice(0);";
-                    elseif($type == Context::UNKNOWN)
-                        $additional[] = "if(" . $vname . " instanceof Array) " . $vname . " = " . $vname . ".slice(0);";
+                    if($type == Context::ARRAY || $type == Context::UNKNOWN)
+                        $additional[] = "if(" . $vname . " instanceof Array) " . $vname . " = " . $vname . ".slice(0); else if(" . $vname . " instanceof Object && " . $vname . ".constructor.name == 'Object') " . $vname . " = Object.assign({}, " . $vname . ");";
                 }
                 $cnt = 0;
                 return "function " . $name . "(" . join(", ", $params) . ")\n"

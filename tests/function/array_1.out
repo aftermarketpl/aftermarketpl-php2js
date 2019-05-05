@@ -1,6 +1,6 @@
 function f_array1(a)
 {
-    a = a.slice(0);
+    if(a instanceof Array) a = a.slice(0); else if(a instanceof Object && a.constructor.name == 'Object') a = Object.assign({}, a);
     return a;
 }
 return f_array1([
